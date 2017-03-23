@@ -7,8 +7,8 @@ Usage:
 
 Available Commands:
   add         Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
-  exec        Execute a command in a running container task, on a remote EC2 host
   help        Help about any command
+  ssh         Secure Shell into one of the service container instances' EC2 host machines
 
 Flags:
       --cluster string   specifies an ECS Cluster (if empty, will load menu)
@@ -19,10 +19,10 @@ Use "ecsy [command] --help" for more information about a command.
 
 #### Installation (OSX only for now)
 
-Example (v0.0.2)
+Example (v0.0.3)
 
 ```
-wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.2/ecsy-v0.0.2-darwin-amd64
+wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.3/ecsy-v0.0.3-darwin-amd64
 chmod +x /usr/local/bin/ecsy
 ```
 
@@ -45,4 +45,3 @@ You only have to do this once, it will persist to `~/.ecsy.yaml` (by default)
 ##### Running commands
 
 Most other help is available on the CLI.  Check it out, and good luck!
-
