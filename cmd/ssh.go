@@ -12,11 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// execCmd represents the exec command
-var execCmd = &cobra.Command{
-	Use:   "exec [cluster] [service]",
-	Short: "Execute a command in a running container task, on a remote EC2 host",
-	Long:  `Lends you the ability to dive right into a running container.`,
+// sshCmd represents the exec command
+var sshCmd = &cobra.Command{
+	Use:   "ssh [cluster] [service]",
+	Short: "Secure Shell into one of the service container instances' EC2 host machines",
+	Long: `
+Lets say you have a service running a few container instances on various hosts.
+Lets say you also need to debug some file configuration running in the container,
+or you maybe need to check some files on disk of the Host, you can shell right
+in there through this command using a menu system rather than figuring it out
+yourself! Yay. I guess.
+`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cluster := args[0]
 		service := args[1]
@@ -50,16 +56,5 @@ var execCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.AddCommand(execCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// execCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// execCmd.Flags().StringP("toggle", "t", false, "Help message for toggle")
-
+	RootCmd.AddCommand(sshCmd)
 }
