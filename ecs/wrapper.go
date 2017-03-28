@@ -56,6 +56,57 @@ func ValidateCluster(cluster string) error {
 	return fmt.Errorf("Cluster not found: %s", cluster)
 }
 
+// GetDeployedEssentialContainer gets the currently deployed "essential" container
+// definition of a cluster service
+func GetDeployedEssentialContainer(cluster, service string) (*ecs.ContainerDefinition, error) {
+	err := ValidateCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+	task, err := GetCurrentTaskDefinition(cluster, service)
+	if err != nil {
+		return nil, err
+	}
+	container, err := GetEssentialContainer(task)
+	if err != nil {
+		return nil, err
+	}
+	return container, nil
+}
+
+// GetCurrentTaskDefinition returns a service's current task definition
+func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, error) {
+	svc := assertECS()
+	input := &ecs.DescribeServicesInput{}
+	input.SetCluster(cluster)
+	input.SetServices([]*string{aws.String(service)})
+	result, err := svc.DescribeServices(input)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Services) == 1 {
+		service := result.Services[0]
+		describeTaskInput := &ecs.DescribeTaskDefinitionInput{}
+		describeTaskInput.SetTaskDefinition(*service.TaskDefinition)
+		findTaskOutput, err := svc.DescribeTaskDefinition(describeTaskInput)
+		if err != nil {
+			return nil, err
+		}
+		return findTaskOutput.TaskDefinition, nil
+	}
+	return nil, fmt.Errorf("Error finding service with name %s in cluster %s, %d results found.", cluster, service, len(result.Services))
+}
+
+// GetEssentialContainer returns the essential container
+func GetEssentialContainer(task *ecs.TaskDefinition) (*ecs.ContainerDefinition, error) {
+	for _, def := range task.ContainerDefinitions {
+		if *def.Essential {
+			return def, nil
+		}
+	}
+	return nil, fmt.Errorf("Error finding essential container, does the task %s have a container marked as essential?\n", task.GoString())
+}
+
 // GetContainerInstances returns the container instances of a cluster
 func GetContainerInstances(cluster string, service string) ([]string, error) {
 	svc := assertECS()

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile, cluster string
+var cfgFile string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -37,7 +37,6 @@ func init() {
 	// will be global for your application.
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ecsy.yaml)")
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "cluster", "", "specifies an ECS Cluster (if empty, will load menu)")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 }
