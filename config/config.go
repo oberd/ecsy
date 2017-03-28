@@ -84,6 +84,9 @@ func (yamlFile *YAMLFile) ReadKeys() (Keys, error) {
 	if err != nil {
 		return nil, err
 	}
+	if config.Keys == nil {
+		config.Keys = make(Keys)
+	}
 	return config.Keys, nil
 }
 
