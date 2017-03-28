@@ -7,12 +7,12 @@ Usage:
 
 Available Commands:
   add         Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
+  env         Used to manage environment variables of service task definitions
   help        Help about any command
   ssh         Secure Shell into one of the service container instances' EC2 host machines
 
 Flags:
-      --cluster string   specifies an ECS Cluster (if empty, will load menu)
-      --config string    config file (default is $HOME/.ecsy.yaml)
+      --config string   config file (default is $HOME/.ecsy.yaml)
 
 Use "ecsy [command] --help" for more information about a command.
 ```
