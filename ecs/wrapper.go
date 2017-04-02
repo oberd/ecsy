@@ -1,7 +1,9 @@
 package ecs
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -10,8 +12,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 )
 
+type serviceKey string
+
+func newServiceKey(cluster, service string) serviceKey {
+	return serviceKey(fmt.Sprintf("%s_%s", cluster, service))
+}
+
 var _ecs *ecs.ECS
 var _ec2 *ec2.EC2
+var _clusterArns map[string]string
 
 func assertECS() *ecs.ECS {
 	if _ecs == nil {
@@ -27,17 +36,34 @@ func assertEC2() *ec2.EC2 {
 	return _ec2
 }
 
+func assertClusterMap() (map[string]string, error) {
+	if _clusterArns == nil {
+		svc := assertECS()
+		clusters, err := svc.ListClusters(&ecs.ListClustersInput{})
+		if err != nil {
+			return nil, err
+		}
+		_clusterArns = make(map[string]string, len(clusters.ClusterArns))
+		for _, s := range clusters.ClusterArns {
+			parts := strings.Split(*s, "/")
+			simpleName := parts[len(parts)-1]
+			_clusterArns[simpleName] = *s
+		}
+	}
+	return _clusterArns, nil
+}
+
 // GetClusterNames returns a slice of strings representing cluster names
 func GetClusterNames() ([]string, error) {
-	svc := assertECS()
-	clusters, err := svc.ListClusters(&ecs.ListClustersInput{})
+	clusterMap, err := assertClusterMap()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, len(clusters.ClusterArns))
-	for i, s := range clusters.ClusterArns {
-		parts := strings.Split(*s, "/")
-		out[i] = parts[len(parts)-1]
+	out := make([]string, len(clusterMap))
+	i := 0
+	for name := range clusterMap {
+		out[i] = name
+		i++
 	}
 	return out, nil
 }
@@ -94,7 +120,7 @@ func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, err
 		}
 		return findTaskOutput.TaskDefinition, nil
 	}
-	return nil, fmt.Errorf("Error finding service with name %s in cluster %s, %d results found.", cluster, service, len(result.Services))
+	return nil, fmt.Errorf("Error finding service with name %s in cluster %s, %d results found.", service, cluster, len(result.Services))
 }
 
 // GetEssentialContainer returns the essential container
@@ -151,4 +177,99 @@ func GetContainerInstances(cluster string, service string) ([]string, error) {
 		dnsNames[i] = *r.Instances[0].PublicDnsName
 	}
 	return dnsNames, nil
+}
+
+// CreateNewTaskWithEnvironment registers a new task, based on the passed task,
+// but with new environment.
+func CreateNewTaskWithEnvironment(existingTask *ecs.TaskDefinition, env []*ecs.KeyValuePair) (*ecs.TaskDefinition, error) {
+	var found bool
+	for _, def := range existingTask.ContainerDefinitions {
+		if *def.Essential {
+			def.SetEnvironment(env)
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("Error finding essential container, does the task %s have a container marked as essential?\n", existingTask.GoString())
+	}
+	svc := assertECS()
+	input := &ecs.RegisterTaskDefinitionInput{}
+	input.SetContainerDefinitions(existingTask.ContainerDefinitions)
+	input.SetFamily(*existingTask.Family)
+	input.SetVolumes(existingTask.Volumes)
+	newTaskDef, err := svc.RegisterTaskDefinition(input)
+	if err != nil {
+		return nil, err
+	}
+	return newTaskDef.TaskDefinition, nil
+}
+
+// FindService finds a service struct by name
+func FindService(cluster, service string) (*ecs.Service, error) {
+	svc := assertECS()
+	result, err := svc.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster:  aws.String(cluster),
+		Services: []*string{aws.String(service)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Services) == 1 {
+		return result.Services[0], nil
+	}
+	return nil, fmt.Errorf("Did not find one (%d) services matching name %s in %s cluster, unable to continue.", len(result.Services), service, cluster)
+}
+
+// DeployTaskToService deploys a given task definition to a cluster/service
+func DeployTaskToService(cluster, service string, task *ecs.TaskDefinition) (*ecs.Service, error) {
+	input := &ecs.UpdateServiceInput{}
+	input.SetCluster(cluster)
+	input.SetService(service)
+	input.SetTaskDefinition(*task.TaskDefinitionArn)
+	svc := assertECS()
+	output, err := svc.UpdateService(input)
+	if err != nil {
+		return nil, err
+	}
+	return output.Service, nil
+}
+
+// KeyPairsToString takes a list of key pairs... and prints them
+// into a multiline block
+func KeyPairsToString(kv []*ecs.KeyValuePair) string {
+	out := ""
+	for _, envVar := range kv {
+		out += fmt.Sprintf("%s=%s\n", *envVar.Name, *envVar.Value)
+	}
+	return out
+}
+
+// StringToKeyPairs takes a string, and turns it back into
+// an array of key pairs
+func StringToKeyPairs(input string) ([]*ecs.KeyValuePair, error) {
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	output := make([]*ecs.KeyValuePair, 0)
+	i := 0
+	for scanner.Scan() {
+		i++
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("Problem parsing line %d: %s", i, line)
+		}
+		newPair := &ecs.KeyValuePair{}
+		newPair.SetName(parts[0])
+		newPair.SetValue(parts[1])
+		output = append(output, newPair)
+	}
+	return output, nil
+}
+
+// BuildConsoleURLForService builds the console url for a service
+func BuildConsoleURLForService(cluster, service string) string {
+	region := os.Getenv("AWS_REGION")
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/services/%s", region, region, cluster, service)
 }
