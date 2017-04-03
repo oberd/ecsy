@@ -3,7 +3,7 @@ package ssh
 import (
 	"fmt"
 
-	"github.com/glinton/ssh"
+	"github.com/nnnnathann/ssh"
 )
 
 // Client is used to connect over ssh to a remote host.
@@ -48,7 +48,10 @@ func (client *Client) Connect() error {
 	keys := ssh.Auth{
 		Keys: []string{client.PrivateKeyFile},
 	}
-	sshterm, err := ssh.NewNativeClient(client.User, client.Host, "SSH-2.0-MyCustomClient-1.0", client.Port, &keys)
+	sshterm, err := ssh.NewNativeClient(client.User, client.Host, "SSH-2.0-MyCustomClient-1.0", client.Port, &keys, nil)
+	if err != nil {
+		return fmt.Errorf("Failed to request shell - %s", err)
+	}
 	err = sshterm.Shell()
 	if err != nil && err.Error() != "exit status 255" {
 		return fmt.Errorf("Failed to request shell - %s", err)
