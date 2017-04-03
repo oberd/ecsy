@@ -25,10 +25,7 @@ var getCmd = &cobra.Command{
 	Long:  `List environment variables for an ECS service's deployed task definition`,
 	Run: func(cmd *cobra.Command, args []string) {
 		container, err := ecs.GetDeployedEssentialContainer(args[0], args[1])
-		if err != nil {
-			fmt.Printf("%v\n", err)
-			os.Exit(1)
-		}
+		failOnError(err, "")
 		fmt.Print(ecs.KeyPairsToString(container.Environment))
 	},
 	PreRunE: Validate2ArgumentsCount,

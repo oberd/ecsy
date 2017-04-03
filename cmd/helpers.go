@@ -97,3 +97,10 @@ func EditStringBlock(input string) (output string, err error) {
 	}
 	return string(edited), nil
 }
+
+func failOnError(err error, message string) {
+	if err != nil {
+		fmt.Printf("%s: %v\n", message, err)
+		os.Exit(1)
+	}
+}

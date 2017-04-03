@@ -9,6 +9,7 @@ Available Commands:
   add         Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
   env         Used to manage environment variables of service task definitions
   help        Help about any command
+  self-update Update the ecsy cli binary on your system
   ssh         Secure Shell into one of the service container instances' EC2 host machines
 
 Flags:
@@ -19,13 +20,16 @@ Use "ecsy [command] --help" for more information about a command.
 
 #### Installation (OSX only for now)
 
-Example (v0.0.7)
+Example (v0.0.8)
 
 ```
-wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.7/ecsy-v0.0.7-darwin-amd64
+wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.7/ecsy-v0.0.8-darwin-amd64
 chmod +x /usr/local/bin/ecsy
 ```
 
+#### Updating
+
+You can run `ecsy self-update` to get the latest version
 
 #### Usage
 

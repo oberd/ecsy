@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/oberd/ecsy/config"
 	"github.com/oberd/ecsy/ecs"
@@ -29,11 +30,10 @@ yourself! Yay. I guess.
 		err := ecs.ValidateCluster(cluster)
 		if err != nil {
 			fmt.Printf("%v\n", err)
+			os.Exit(1)
 		}
 		res, err := ecs.GetContainerInstances(cluster, service)
-		if err != nil {
-			fmt.Printf("%v\n", err)
-		}
+		failOnError(err, "")
 		clusterKey := config.GetClusterKey(cluster)
 		choice := StringChooser(res, "Please choose a server")
 		client := ssh.NewClient(ssh.ClientConfiguration{
@@ -42,9 +42,7 @@ yourself! Yay. I guess.
 			PrivateKeyFile: clusterKey,
 		})
 		err = client.Connect()
-		if err != nil {
-			fmt.Printf("%v", err)
-		}
+		failOnError(err, "")
 		fmt.Printf("Finished\n")
 	},
 	PreRunE: func(cmd *cobra.Command, args []string) error {
