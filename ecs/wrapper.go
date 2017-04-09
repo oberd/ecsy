@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -218,6 +219,25 @@ func FindService(cluster, service string) (*ecs.Service, error) {
 		return result.Services[0], nil
 	}
 	return nil, fmt.Errorf("Did not find one (%d) services matching name %s in %s cluster, unable to continue.", len(result.Services), service, cluster)
+}
+
+// ListServices lists services for a cluster by plain name
+func ListServices(cluster string) ([]string, error) {
+	svc := assertECS()
+	params := &ecs.ListServicesInput{Cluster: aws.String(cluster)}
+	result := make([]*string, 0)
+	err := svc.ListServicesPages(params, func(services *ecs.ListServicesOutput, lastPage bool) bool {
+		result = append(result, services.ServiceArns...)
+		return !lastPage
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(result))
+	for i, s := range result {
+		out[i] = path.Base(*s)
+	}
+	return out, nil
 }
 
 // DeployTaskToService deploys a given task definition to a cluster/service

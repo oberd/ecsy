@@ -7,11 +7,36 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/oberd/ecsy/ecs"
 	"github.com/spf13/cobra"
 )
+
+// ServiceChooser enforces an arguments array have a cluster and service
+// if it does not, it will search and prompt
+func ServiceChooser(args []string) (string, string) {
+	var cluster, service string
+	if len(args) > 0 {
+		cluster = args[0]
+	}
+	if len(args) > 1 {
+		service = args[1]
+	}
+	if cluster == "" {
+		names, err := ecs.GetClusterNames()
+		failOnError(err, "Error finding clusters")
+		cluster = StringChooser(names, "Please choose a cluster")
+	}
+	if service == "" {
+		services, err := ecs.ListServices(cluster)
+		service = StringChooser(services, "Please choose a service")
+		failOnError(err, "Error finding services")
+	}
+	return cluster, service
+}
 
 // StringChooser asks a user to pick from a series of strings
 func StringChooser(options []string, title string) string {
@@ -21,6 +46,7 @@ func StringChooser(options []string, title string) string {
 	for {
 		fmt.Printf("%s:\n", title)
 		reader := bufio.NewReader(os.Stdin)
+		sort.Strings(options)
 		for choice, disp := range options {
 			fmt.Printf("[%d]: %s\n", choice+1, disp)
 		}
@@ -61,7 +87,7 @@ func AskForConfirmation(s string) bool {
 // Validate2ArgumentsCount simply validates that there are two arguments
 func Validate2ArgumentsCount(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf("Not enough arguemnts supplied! %v", args)
+		return fmt.Errorf("Not enough arguments supplied!")
 	}
 	return nil
 }
