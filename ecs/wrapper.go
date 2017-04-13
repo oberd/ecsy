@@ -254,6 +254,20 @@ func DeployTaskToService(cluster, service string, task *ecs.TaskDefinition) (*ec
 	return output.Service, nil
 }
 
+// ScaleService sets the desired count of a service
+func ScaleService(cluster, service string, desiredCount int) (*ecs.Service, error) {
+	input := &ecs.UpdateServiceInput{}
+	input.SetCluster(cluster)
+	input.SetService(service)
+	input.SetDesiredCount(int64(desiredCount))
+	svc := assertECS()
+	output, err := svc.UpdateService(input)
+	if err != nil {
+		return nil, err
+	}
+	return output.Service, nil
+}
+
 // KeyPairsToString takes a list of key pairs... and prints them
 // into a multiline block
 func KeyPairsToString(kv []*ecs.KeyValuePair) string {
