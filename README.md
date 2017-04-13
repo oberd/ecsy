@@ -10,6 +10,7 @@ Available Commands:
   env         Used to manage environment variables of service task definitions
   events      Show recent events for a service in a cluster
   help        Help about any command
+  scale       Set the number of desired instances of a service
   self-update Update the ecsy cli binary on your system
   ssh         Secure Shell into one of the service container instances' EC2 host machines
   status      View current cluster or service deployment status
@@ -22,10 +23,10 @@ Use "ecsy [command] --help" for more information about a command
 
 #### Installation (OSX only for now)
 
-Example (v0.0.10)
+Example (v0.0.11)
 
 ```
-wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.9/ecsy-v0.0.10-darwin-amd64
+wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.11/ecsy-v0.0.11-darwin-amd64
 chmod +x /usr/local/bin/ecsy
 ```
 
