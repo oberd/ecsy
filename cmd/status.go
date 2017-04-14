@@ -25,7 +25,7 @@ func printServiceStatus(cluster, service string) bool {
 	currCount := len(serviceObj.Deployments)
 	hasChanged := prevCount != 1000 && currCount != prevCount
 	prevCount = currCount
-	return hasChanged
+	return !hasChanged
 }
 
 // statusCmd represents the status command
