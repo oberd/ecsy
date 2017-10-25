@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 )
@@ -21,6 +22,7 @@ func newServiceKey(cluster, service string) serviceKey {
 
 var _ecs *ecs.ECS
 var _ec2 *ec2.EC2
+var _cloudWatch *cloudwatchlogs.CloudWatchLogs
 var _clusterArns map[string]string
 
 func assertECS() *ecs.ECS {
@@ -35,6 +37,13 @@ func assertEC2() *ec2.EC2 {
 		_ec2 = ec2.New(session.New(&aws.Config{Region: aws.String("us-west-2")}))
 	}
 	return _ec2
+}
+
+func assertCloudWatch(region string) *cloudwatchlogs.CloudWatchLogs {
+	if _cloudWatch == nil {
+		_cloudWatch = cloudwatchlogs.New(session.New(&aws.Config{Region: aws.String(region)}))
+	}
+	return _cloudWatch
 }
 
 func assertClusterMap() (map[string]string, error) {
@@ -306,4 +315,71 @@ func StringToKeyPairs(input string) ([]*ecs.KeyValuePair, error) {
 func BuildConsoleURLForService(cluster, service string) string {
 	region := os.Getenv("AWS_REGION")
 	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/services/%s", region, region, cluster, service)
+}
+
+// GetLogs returns cloudwatch logs for a specific set of log streams
+// matching a pattern within a log group and region
+func GetLogs(cluster, service string) error {
+	def, err := GetCurrentTaskDefinition(cluster, service)
+	if err != nil {
+		return fmt.Errorf("Problem getting task definition: %v", err)
+	}
+	logConfig := def.ContainerDefinitions[0].LogConfiguration
+	if *logConfig.LogDriver != "awslogs" {
+		fmt.Print(fmt.Errorf("logs command requires awslogs driver, found %v", def.ContainerDefinitions[0].LogConfiguration))
+		os.Exit(1)
+	}
+	group := logConfig.Options["awslogs-group"]
+	prefix := logConfig.Options["awslogs-stream-prefix"]
+	region := *logConfig.Options["awslogs-region"]
+	svc := assertCloudWatch(region)
+	pageNum := 0
+	params := &cloudwatchlogs.DescribeLogStreamsInput{
+		LogGroupName: group,
+		OrderBy:      aws.String("LastEventTime"),
+		Descending:   aws.Bool(true),
+	}
+	var eventErr error
+	err = svc.DescribeLogStreamsPages(params, func(page *cloudwatchlogs.DescribeLogStreamsOutput, lastPage bool) bool {
+		pageNum++
+		for _, stream := range page.LogStreams {
+			name := stream.LogStreamName
+			if strings.HasPrefix(*name, *prefix) {
+				eventErr := ListLogEvents(*group, *name, region)
+				if eventErr != nil {
+					return false
+				}
+			}
+		}
+		return pageNum <= 3
+	})
+	if err != nil {
+		return fmt.Errorf("Problem listing log streams: %v", err)
+	}
+	if eventErr != nil {
+		return fmt.Errorf("Problem listing log streams: %v", eventErr)
+	}
+	return nil
+}
+
+// ListLogEvents accepts a single group and stream name
+// and prints the cloudwatch logs to stdout
+func ListLogEvents(group, name, region string) error {
+	svc := assertCloudWatch(region)
+	eventParams := &cloudwatchlogs.GetLogEventsInput{
+		LogGroupName:  aws.String(group),
+		LogStreamName: aws.String(name),
+	}
+	eventPage := 0
+	eventErr := svc.GetLogEventsPages(eventParams, func(events *cloudwatchlogs.GetLogEventsOutput, lastPage bool) bool {
+		eventPage++
+		for _, event := range events.Events {
+			fmt.Println(*event.Message)
+		}
+		return eventPage <= 3
+	})
+	if eventErr != nil {
+		return eventErr
+	}
+	return nil
 }

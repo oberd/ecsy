@@ -7,9 +7,11 @@ Usage:
 
 Available Commands:
   add         Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
+  describe    Show current task configuration for service
   env         Used to manage environment variables of service task definitions
   events      Show recent events for a service in a cluster
   help        Help about any command
+  logs        Show recent logs for a service in a cluster (must be cloudwatch based)
   scale       Set the number of desired instances of a service
   self-update Update the ecsy cli binary on your system
   ssh         Secure Shell into one of the service container instances' EC2 host machines
@@ -18,7 +20,7 @@ Available Commands:
 Flags:
       --config string   config file (default is $HOME/.ecsy.yaml)
 
-Use "ecsy [command] --help" for more information about a command
+Use "ecsy [command] --help" for more information about a command.
 ```
 
 #### Installation (OSX only for now)
