@@ -143,6 +143,43 @@ func GetEssentialContainer(task *ecs.TaskDefinition) (*ecs.ContainerDefinition, 
 	return nil, fmt.Errorf("Error finding essential container, does the task %s have a container marked as essential?\n", task.GoString())
 }
 
+// GetClusterInstances returns the container instances of a cluster
+// by id
+func GetClusterInstances(cluster string) ([]string, error) {
+	svc := assertECS()
+	input := &ecs.ListContainerInstancesInput{
+		Cluster: &cluster,
+	}
+	pageNum := 0
+	output := make([]string, 0)
+	err := svc.ListContainerInstancesPages(input,
+		func(page *ecs.ListContainerInstancesOutput, lastPage bool) bool {
+			for _, arn := range page.ContainerInstanceArns {
+				output = append(output, *arn)
+			}
+			pageNum++
+			return true
+		})
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+// UpdateAgent will update the agents for all instances in a cluster
+func UpdateAgent(cluster, containerInstanceARN string) error {
+	svc := assertECS()
+	input := &ecs.UpdateContainerAgentInput{
+		Cluster:           &cluster,
+		ContainerInstance: &containerInstanceARN,
+	}
+	_, err := svc.UpdateContainerAgent(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetContainerInstances returns the container instances of a cluster
 func GetContainerInstances(cluster string, service string) ([]string, error) {
 	svc := assertECS()
