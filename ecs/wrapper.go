@@ -130,7 +130,7 @@ func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, err
 		}
 		return findTaskOutput.TaskDefinition, nil
 	}
-	return nil, fmt.Errorf("Error finding service with name %s in cluster %s, %d results found.", service, cluster, len(result.Services))
+	return nil, fmt.Errorf("error finding service with name %s in cluster %s, %d results found", service, cluster, len(result.Services))
 }
 
 // GetEssentialContainer returns the essential container
@@ -140,7 +140,7 @@ func GetEssentialContainer(task *ecs.TaskDefinition) (*ecs.ContainerDefinition, 
 			return def, nil
 		}
 	}
-	return nil, fmt.Errorf("Error finding essential container, does the task %s have a container marked as essential?\n", task.GoString())
+	return nil, fmt.Errorf("error finding essential container, does the task %s have a container marked as essential", task.GoString())
 }
 
 // GetClusterInstances returns the container instances of a cluster
@@ -237,7 +237,7 @@ func CreateNewTaskWithEnvironment(existingTask *ecs.TaskDefinition, env []*ecs.K
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("Error finding essential container, does the task %s have a container marked as essential?\n", existingTask.GoString())
+		return nil, fmt.Errorf("error finding essential container, does the task %s have a container marked as essential", existingTask.GoString())
 	}
 	svc := assertECS()
 	input := &ecs.RegisterTaskDefinitionInput{}
@@ -264,7 +264,7 @@ func FindService(cluster, service string) (*ecs.Service, error) {
 	if len(result.Services) == 1 {
 		return result.Services[0], nil
 	}
-	return nil, fmt.Errorf("Did not find one (%d) services matching name %s in %s cluster, unable to continue.", len(result.Services), service, cluster)
+	return nil, fmt.Errorf("did not find one (%d) services matching name %s in %s cluster, unable to continue", len(result.Services), service, cluster)
 }
 
 // ListServices lists services for a cluster by plain name
@@ -372,9 +372,10 @@ func GetLogs(cluster, service string) error {
 	svc := assertCloudWatch(region)
 	pageNum := 0
 	params := &cloudwatchlogs.DescribeLogStreamsInput{
-		LogGroupName: group,
-		OrderBy:      aws.String("LastEventTime"),
-		Descending:   aws.Bool(true),
+		LogGroupName:        group,
+		LogStreamNamePrefix: prefix,
+		OrderBy:             aws.String("LastEventTime"),
+		Descending:          aws.Bool(true),
 	}
 	var eventErr error
 	err = svc.DescribeLogStreamsPages(params, func(page *cloudwatchlogs.DescribeLogStreamsOutput, lastPage bool) bool {

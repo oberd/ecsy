@@ -87,7 +87,7 @@ func AskForConfirmation(s string) bool {
 // Validate2ArgumentsCount simply validates that there are two arguments
 func Validate2ArgumentsCount(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf("Not enough arguments supplied!")
+		return fmt.Errorf("not enough arguments supplied")
 	}
 	return nil
 }
