@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -185,7 +186,9 @@ func GetContainerInstances(cluster string, service string) ([]string, error) {
 	svc := assertECS()
 	input := &ecs.ListTasksInput{}
 	input.SetCluster(cluster)
-	input.SetServiceName(service)
+	if service != "" {
+		input.SetServiceName(service)
+	}
 	result, err := svc.ListTasks(input)
 	if err != nil {
 		return nil, err
@@ -372,10 +375,9 @@ func GetLogs(cluster, service string) error {
 	svc := assertCloudWatch(region)
 	pageNum := 0
 	params := &cloudwatchlogs.DescribeLogStreamsInput{
-		LogGroupName:        group,
-		LogStreamNamePrefix: prefix,
-		OrderBy:             aws.String("LastEventTime"),
-		Descending:          aws.Bool(true),
+		LogGroupName: group,
+		OrderBy:      aws.String("LastEventTime"),
+		Descending:   aws.Bool(true),
 	}
 	var eventErr error
 	err = svc.DescribeLogStreamsPages(params, func(page *cloudwatchlogs.DescribeLogStreamsOutput, lastPage bool) bool {
@@ -404,15 +406,18 @@ func GetLogs(cluster, service string) error {
 // and prints the cloudwatch logs to stdout
 func ListLogEvents(group, name, region string) error {
 	svc := assertCloudWatch(region)
+	startTime := time.Now().Add(-10 * time.Minute)
 	eventParams := &cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  aws.String(group),
 		LogStreamName: aws.String(name),
+		StartTime:     aws.Int64(startTime.Unix() * 1000),
 	}
 	eventPage := 0
 	eventErr := svc.GetLogEventsPages(eventParams, func(events *cloudwatchlogs.GetLogEventsOutput, lastPage bool) bool {
 		eventPage++
 		for _, event := range events.Events {
-			fmt.Println(*event.Message)
+			val := time.Unix(*event.Timestamp/1000, 0)
+			fmt.Println(fmt.Sprintf("[%v] %v", val.Format("2006-01-02 15:04:05 MST"), *event.Message))
 		}
 		return eventPage <= 3
 	})
