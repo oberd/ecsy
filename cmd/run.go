@@ -28,7 +28,7 @@ import (
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run [cluster]",
-	Short: "A brief description of your command",
+	Short: "Run an ssh command on all the servers in a cluster",
 	Long:  `Run an ssh command on all the servers in a cluster`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cluster := args[0]

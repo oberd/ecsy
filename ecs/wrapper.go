@@ -426,3 +426,30 @@ func ListLogEvents(group, name, region string) error {
 	}
 	return nil
 }
+
+// RunTaskWithCommand runs a one-off task with a command
+// override.
+func RunTaskWithCommand(cluster, service, command string) (*ecs.RunTaskOutput, error) {
+	svc := assertECS()
+	task, err := GetCurrentTaskDefinition(cluster, service)
+	if err != nil {
+		return nil, err
+	}
+	commandParts := strings.Split(command, " ")
+	commandPointers := make([]*string, len(commandParts))
+	for i := 0; i < len(commandParts); i++ {
+		commandPointers[i] = aws.String(strings.Trim(commandParts[i], " "))
+	}
+	return svc.RunTask(&ecs.RunTaskInput{
+		Cluster:        aws.String(cluster),
+		TaskDefinition: task.TaskDefinitionArn,
+		Overrides: &ecs.TaskOverride{
+			ContainerOverrides: []*ecs.ContainerOverride{
+				&ecs.ContainerOverride{
+					Name:    task.ContainerDefinitions[0].Name,
+					Command: commandPointers,
+				},
+			},
+		},
+	})
+}
