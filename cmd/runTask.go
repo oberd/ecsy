@@ -52,6 +52,12 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 			log.Fatalf("%v\n", err)
 			return
 		}
+		if len(output.Failures) > 0 {
+			for _, failure := range output.Failures {
+				log.Fatalf("Received failure from AWS:\n%v", failure.String())
+			}
+			return
+		}
 		parts := strings.Split(*output.Tasks[0].TaskArn, "/")
 		taskID := parts[len(parts)-1]
 		detailsLink := fmt.Sprintf(
