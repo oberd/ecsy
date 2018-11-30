@@ -2,6 +2,7 @@ package ecs
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -10,9 +11,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
+	"github.com/aws/aws-sdk-go/service/iam"
 )
 
 type serviceKey string
@@ -23,28 +26,51 @@ func newServiceKey(cluster, service string) serviceKey {
 
 var _ecs *ecs.ECS
 var _ec2 *ec2.EC2
+var _iam *iam.IAM
 var _cloudWatch *cloudwatchlogs.CloudWatchLogs
+var _cloudWatchEvents *cloudwatchevents.CloudWatchEvents
 var _clusterArns map[string]string
+
+func getServiceConfiguration() *aws.Config {
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-west-2"
+	}
+	return &aws.Config{Region: aws.String(region)}
+}
 
 func assertECS() *ecs.ECS {
 	if _ecs == nil {
-		_ecs = ecs.New(session.New(&aws.Config{Region: aws.String("us-west-2")}))
+		_ecs = ecs.New(session.New(getServiceConfiguration()))
 	}
 	return _ecs
 }
 
 func assertEC2() *ec2.EC2 {
 	if _ec2 == nil {
-		_ec2 = ec2.New(session.New(&aws.Config{Region: aws.String("us-west-2")}))
+		_ec2 = ec2.New(session.New(getServiceConfiguration()))
 	}
 	return _ec2
 }
 
 func assertCloudWatch(region string) *cloudwatchlogs.CloudWatchLogs {
 	if _cloudWatch == nil {
-		_cloudWatch = cloudwatchlogs.New(session.New(&aws.Config{Region: aws.String(region)}))
+		_cloudWatch = cloudwatchlogs.New(session.New(getServiceConfiguration()))
 	}
 	return _cloudWatch
+}
+
+func assertCloudWatchEvents() *cloudwatchevents.CloudWatchEvents {
+	if _cloudWatchEvents == nil {
+		_cloudWatchEvents = cloudwatchevents.New(session.New(getServiceConfiguration()))
+	}
+	return _cloudWatchEvents
+}
+func assertIAM() *iam.IAM {
+	if _iam == nil {
+		_iam = iam.New(session.New(getServiceConfiguration()))
+	}
+	return _iam
 }
 
 func assertClusterMap() (map[string]string, error) {
@@ -452,4 +478,129 @@ func RunTaskWithCommand(cluster, service, command string) (*ecs.RunTaskOutput, e
 			},
 		},
 	})
+}
+
+// FindRoleByName paginates through roles and returns
+// any found that match the name string
+func FindRoleByName(name string) (*iam.Role, error) {
+	svc := assertIAM()
+	params := &iam.ListRolesInput{
+		MaxItems: aws.Int64(100),
+	}
+	var found *iam.Role
+	err := svc.ListRolesPages(params, func(rolesOutput *iam.ListRolesOutput, lastPage bool) bool {
+		for _, role := range rolesOutput.Roles {
+			if *role.RoleName == name {
+				found = role
+				return false
+			}
+		}
+		return !lastPage
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to find role by name: %v", err)
+	}
+	if found == nil {
+		return nil, fmt.Errorf("unable to find role with name: %v", name)
+	}
+	return found, nil
+}
+
+type containerOverride struct {
+	ContainerName string   `json:"name"`
+	Command       []string `json:"command"`
+}
+
+type ecsCommandOverrideJSON struct {
+	ContainerOverrides []containerOverride `json:"containerOverrides"`
+}
+
+// CreateScheduledTask creates a scheduled task in an ECS cluster
+// with the specified paramters
+func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, command string) error {
+	svc := assertCloudWatchEvents()
+	name := strings.Join([]string{
+		cluster,
+		service,
+		taskSuffix,
+	}, "-")
+	clusters, err := assertClusterMap()
+	if err != nil {
+		return fmt.Errorf("unable create cluster definitions map: %v", err)
+	}
+	clusterArn := clusters[cluster]
+	taskDefinition, err := GetCurrentTaskDefinition(cluster, service)
+	if err != nil {
+		return fmt.Errorf("unable to find current task definition: %v", err)
+	}
+	result, err := svc.ListRules(&cloudwatchevents.ListRulesInput{
+		NamePrefix: aws.String(name),
+		Limit:      aws.Int64(100),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to list event rules: %v", err)
+	}
+	if len(result.Rules) == 0 {
+		fmt.Printf("Creating Scheduled Task: %v\n", name)
+	} else {
+		fmt.Printf("Updated Scheduled Task: %v\n", name)
+	}
+	_, err = svc.PutRule(
+		&cloudwatchevents.PutRuleInput{
+			Name:               aws.String(name),
+			ScheduleExpression: aws.String(scheduleExpression),
+			Description: aws.String(fmt.Sprintf(
+				"Schedule Expression for %v Service in %v ECS Cluster",
+				service,
+				cluster,
+			)),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create or update event rule: %v", err)
+	}
+	target := &cloudwatchevents.Target{
+		Id:      aws.String("1"),
+		Arn:     aws.String(clusterArn),
+		RoleArn: taskDefinition.TaskRoleArn,
+		EcsParameters: &cloudwatchevents.EcsParameters{
+			TaskDefinitionArn: taskDefinition.TaskDefinitionArn,
+			TaskCount:         aws.Int64(1),
+		},
+	}
+	if target.RoleArn == nil {
+		role, err := FindRoleByName("ecsEventsRole")
+		if err != nil {
+			return err
+		}
+		target.RoleArn = role.Arn
+	}
+	if command != "" {
+		overrides := ecsCommandOverrideJSON{
+			ContainerOverrides: []containerOverride{
+				containerOverride{
+					ContainerName: *taskDefinition.ContainerDefinitions[0].Name,
+					Command:       strings.Split(command, " "),
+				},
+			},
+		}
+		inputJSON, _ := json.Marshal(overrides)
+		target.Input = aws.String(string(inputJSON))
+	}
+	_, err = svc.PutTargets(&cloudwatchevents.PutTargetsInput{
+		Rule:    aws.String(name),
+		Targets: []*cloudwatchevents.Target{target},
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create or update targets %v", err)
+	}
+	url := fmt.Sprintf(
+		"https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/scheduledTasks/%s",
+		*getServiceConfiguration().Region,
+		*getServiceConfiguration().Region,
+		cluster,
+		name,
+	)
+	fmt.Printf("Created or updated target: %v\n", url)
+	return nil
 }
