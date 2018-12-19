@@ -5,7 +5,8 @@ clean:
 	@rm -rf dist && mkdir dist
 
 compile: clean
-	GOOS=darwin go build -o dist/ecsy-$(LAST_TAG)-darwin-amd64 *.go
+	GOOS=darwin go build -o dist/ecsy-$(LAST_TAG)-darwin-amd64 *.go && \
+	GOOS=linux go build -o dist/ecsy-$(LAST_TAG)-linux *.go
 
 release-deps:
 	go get github.com/c4milo/github-release
