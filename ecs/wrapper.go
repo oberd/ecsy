@@ -472,7 +472,7 @@ func ListLogEvents(group, name, region string) error {
 
 // RunTaskWithCommand runs a one-off task with a command
 // override.
-func RunTaskWithCommand(cluster, service, command, image string) (*ecs.RunTaskOutput, error) {
+func RunTaskWithCommand(cluster, service, command string) (*ecs.RunTaskOutput, error) {
 	svc := assertECS()
 	task, err := GetCurrentTaskDefinition(cluster, service)
 	if err != nil {
