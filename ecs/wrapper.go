@@ -160,6 +160,18 @@ func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, err
 	return nil, fmt.Errorf("error finding service with name %s in cluster %s, %d results found", service, cluster, len(result.Services))
 }
 
+// GetTaskDefinition returns a task definition by arn
+func GetTaskDefinition(arn string) (*ecs.TaskDefinition, error) {
+	svc := assertECS()
+	output, err := svc.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
+		TaskDefinition: aws.String(arn),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return output.TaskDefinition, nil
+}
+
 // GetEssentialContainer returns the essential container
 func GetEssentialContainer(task *ecs.TaskDefinition) (*ecs.ContainerDefinition, error) {
 	for _, def := range task.ContainerDefinitions {
@@ -390,10 +402,14 @@ func GetLogs(cluster, service string) error {
 	if err != nil {
 		return fmt.Errorf("Problem getting task definition: %v", err)
 	}
+	return GetTaskLogs(def, "")
+}
+
+// GetTaskLogs prints logs to stdout
+func GetTaskLogs(def *ecs.TaskDefinition, taskID string) error {
 	logConfig := def.ContainerDefinitions[0].LogConfiguration
 	if *logConfig.LogDriver != "awslogs" {
-		fmt.Print(fmt.Errorf("logs command requires awslogs driver, found %v", def.ContainerDefinitions[0].LogConfiguration))
-		os.Exit(1)
+		return fmt.Errorf("logs command requires awslogs driver, found %v", def.ContainerDefinitions[0].LogConfiguration)
 	}
 	group := logConfig.Options["awslogs-group"]
 	prefix := logConfig.Options["awslogs-stream-prefix"]
@@ -402,11 +418,12 @@ func GetLogs(cluster, service string) error {
 	pageNum := 0
 	params := &cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName: group,
-		OrderBy:      aws.String("LastEventTime"),
-		Descending:   aws.Bool(true),
+	}
+	if taskID != "" {
+		params.SetLogStreamNamePrefix(fmt.Sprintf("%s/%s/%s", *prefix, *def.Family, taskID))
 	}
 	var eventErr error
-	err = svc.DescribeLogStreamsPages(params, func(page *cloudwatchlogs.DescribeLogStreamsOutput, lastPage bool) bool {
+	err := svc.DescribeLogStreamsPages(params, func(page *cloudwatchlogs.DescribeLogStreamsOutput, lastPage bool) bool {
 		pageNum++
 		for _, stream := range page.LogStreams {
 			name := stream.LogStreamName
@@ -455,7 +472,7 @@ func ListLogEvents(group, name, region string) error {
 
 // RunTaskWithCommand runs a one-off task with a command
 // override.
-func RunTaskWithCommand(cluster, service, command string) (*ecs.RunTaskOutput, error) {
+func RunTaskWithCommand(cluster, service, command, image string) (*ecs.RunTaskOutput, error) {
 	svc := assertECS()
 	task, err := GetCurrentTaskDefinition(cluster, service)
 	if err != nil {
@@ -603,4 +620,36 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 	)
 	fmt.Printf("Created or updated target: %v\n", url)
 	return nil
+}
+
+// TaskExitCode  will tell you if the exit code of a task
+func TaskExitCode(task *ecs.Task) (*int64, error) {
+	svc := assertECS()
+	input := &ecs.DescribeTasksInput{
+		Cluster: task.ClusterArn,
+		Tasks:   []*string{task.TaskArn},
+	}
+	output, err := svc.DescribeTasks(input)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to poll tasks: %v", err)
+	}
+	if len(output.Tasks) != 1 {
+		return nil, fmt.Errorf(
+			"Unable to find task (cluster: %v, arn: %v)",
+			task.ClusterArn,
+			task.TaskArn,
+		)
+	}
+	outputTask := output.Tasks[0]
+	var exitCode *int64
+	for _, container := range outputTask.Containers {
+		if container.ExitCode == nil {
+			return nil, nil
+		}
+		if *container.ExitCode > 0 {
+			return container.ExitCode, nil
+		}
+		*exitCode = *container.ExitCode
+	}
+	return exitCode, nil
 }

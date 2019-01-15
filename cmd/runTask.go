@@ -17,11 +17,15 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/oberd/ecsy/ecs"
 	"github.com/spf13/cobra"
 )
+
+var runTaskWait = false
 
 // runTaskCmd represents the runTask command
 var runTaskCmd = &cobra.Command{
@@ -59,16 +63,51 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 			return
 		}
 		parts := strings.Split(*output.Tasks[0].TaskArn, "/")
+		task := output.Tasks[0]
 		taskID := parts[len(parts)-1]
 		detailsLink := fmt.Sprintf(
 			"https://us-west-2.console.aws.amazon.com/ecs/home?region=us-west-2#/clusters/%s/tasks/%s/details",
 			cluster,
 			taskID,
 		)
-		fmt.Printf("For Details, Visit:\n%s\n", detailsLink)
+		fmt.Printf("=> Created Task: %s\n", detailsLink)
+		if runTaskWait {
+			fmt.Printf("==> Waiting for task to complete...\n")
+			exitCode, err := ecs.TaskExitCode(task)
+			if err != nil {
+				log.Fatalf("%v\n", err)
+				return
+			}
+			for exitCode == nil {
+				time.Sleep(time.Second * 5)
+				exitCode, err = ecs.TaskExitCode(task)
+			}
+			if err != nil {
+				log.Fatalf("%v\n", err)
+				return
+			}
+			definition, err := ecs.GetTaskDefinition(*task.TaskDefinitionArn)
+			if err != nil {
+				log.Printf("Unable to read current task definition: %v\n", err)
+				return
+			}
+			fmt.Printf("==> Retrieving Container Log Output\n")
+			err = ecs.GetTaskLogs(definition, taskID)
+			if err != nil {
+				log.Printf("Unable to read logs: %v\n", err)
+			}
+			fmt.Printf("==> End Container Log Output\n")
+			if *exitCode > 0 {
+				log.Printf("==> Received error code from container: %v", *exitCode)
+			} else {
+				fmt.Printf("=> Tasks Completed Successfully\n")
+			}
+			os.Exit(int(*exitCode))
+		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(runTaskCmd)
+	runTaskCmd.Flags().BoolVarP(&runTaskWait, "wait", "w", false, "Wait for completion of task")
 }
