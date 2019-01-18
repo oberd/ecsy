@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/oberd/ecsy/ecs"
@@ -62,9 +61,8 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 			}
 			return
 		}
-		parts := strings.Split(*output.Tasks[0].TaskArn, "/")
 		task := output.Tasks[0]
-		taskID := parts[len(parts)-1]
+		taskID := ecs.GetTaskIDFromArn(*output.Tasks[0].TaskArn)
 		detailsLink := fmt.Sprintf(
 			"https://us-west-2.console.aws.amazon.com/ecs/home?region=us-west-2#/clusters/%s/tasks/%s/details",
 			cluster,

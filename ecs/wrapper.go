@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -395,14 +397,104 @@ func BuildConsoleURLForService(cluster, service string) string {
 	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/services/%s", region, region, cluster, service)
 }
 
+// GetAllTasksByDefinition gets the tasks that have run recently for a
+// cluster and service
+func GetAllTasksByDefinition(cluster string, def *ecs.TaskDefinition) ([]*ecs.Task, error) {
+	svc := assertECS()
+	params := &ecs.ListTasksInput{
+		Cluster: aws.String(cluster),
+		Family:  def.Family,
+	}
+	allArns := make([]*string, 0)
+	svc.ListTasksPages(params, func(page *ecs.ListTasksOutput, lastPage bool) bool {
+		allArns = append(allArns, page.TaskArns...)
+		return !lastPage
+	})
+	tasks, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: aws.String(cluster),
+		Tasks:   allArns,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tasks.Tasks, nil
+}
+
 // GetLogs returns cloudwatch logs for a specific set of log streams
 // matching a pattern within a log group and region
 func GetLogs(cluster, service string) error {
 	def, err := GetCurrentTaskDefinition(cluster, service)
 	if err != nil {
-		return fmt.Errorf("Problem getting task definition: %v", err)
+		return err
 	}
-	return GetTaskLogs(def, "")
+	allTasks, err := GetAllTasksByDefinition(cluster, def)
+	if err != nil {
+		return fmt.Errorf("Problem getting tasks by definition: %v", err)
+	}
+	logConfig := def.ContainerDefinitions[0].LogConfiguration
+	if *logConfig.LogDriver != "awslogs" {
+		return fmt.Errorf("GetLogs function requires awslogs driver, found %v", def.ContainerDefinitions[0].LogConfiguration)
+	}
+	group := logConfig.Options["awslogs-group"]
+	prefix := logConfig.Options["awslogs-stream-prefix"]
+	region := *logConfig.Options["awslogs-region"]
+	allStreams := make([]*cloudwatchlogs.GetLogEventsInput, len(allTasks))
+	for i, task := range allTasks {
+		taskID := GetTaskIDFromArn(*task.TaskArn)
+		allStreams[i] = &cloudwatchlogs.GetLogEventsInput{
+			LogGroupName:  group,
+			LogStreamName: aws.String(fmt.Sprintf("%s/%s/%s", *prefix, *task.Containers[0].Name, taskID)),
+		}
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(len(allStreams))
+	allLogsStream := make(chan string)
+	for _, params := range allStreams {
+		go func(params *cloudwatchlogs.GetLogEventsInput) {
+			defer wg.Done()
+			logs, err := GetAllLogs(region, params)
+			if err == nil {
+				for _, log := range logs {
+					allLogsStream <- log
+				}
+			}
+		}(params)
+	}
+	allLogs := make([]string, 0)
+	go func() {
+		for curr := range allLogsStream {
+			allLogs = append(allLogs, curr)
+		}
+	}()
+	wg.Wait()
+	sort.Strings(allLogs)
+	fmt.Println(strings.Join(allLogs, "\n"))
+	return nil
+}
+
+// GetAllLogs retrieves the entire log history
+func GetAllLogs(region string, params *cloudwatchlogs.GetLogEventsInput) ([]string, error) {
+	svc := assertCloudWatch(region)
+	allEvents := make([]string, 0)
+	err := svc.GetLogEventsPages(params, func(output *cloudwatchlogs.GetLogEventsOutput, lastPage bool) bool {
+		for _, event := range output.Events {
+			val := time.Unix(*event.Timestamp/1000, 0)
+			message := fmt.Sprintf("[%v] %v", val.Format("2006-01-02 15:04:05 MST"), *event.Message)
+			allEvents = append(allEvents, message)
+		}
+		return !lastPage
+	})
+	if err != nil {
+		return nil, err
+	}
+	return allEvents, nil
+}
+
+// GetTaskIDFromArn returns the last part of an arn
+// for an ecs task
+func GetTaskIDFromArn(arn string) string {
+	parts := strings.Split(arn, "/")
+	return parts[len(parts)-1]
 }
 
 // GetTaskLogs prints logs to stdout
@@ -417,7 +509,8 @@ func GetTaskLogs(def *ecs.TaskDefinition, taskID string) error {
 	svc := assertCloudWatch(region)
 	pageNum := 0
 	params := &cloudwatchlogs.DescribeLogStreamsInput{
-		LogGroupName: group,
+		LogGroupName:        group,
+		LogStreamNamePrefix: prefix,
 	}
 	if taskID != "" {
 		params.SetLogStreamNamePrefix(fmt.Sprintf("%s/%s/%s", *prefix, *def.Family, taskID))
