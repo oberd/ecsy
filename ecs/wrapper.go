@@ -400,19 +400,38 @@ func BuildConsoleURLForService(cluster, service string) string {
 // GetAllTasksByDefinition gets the tasks that have run recently for a
 // cluster and service
 func GetAllTasksByDefinition(cluster string, def *ecs.TaskDefinition) ([]*ecs.Task, error) {
+	runningTasks, err := GetAllTasksByDefinitionStatus(cluster, def, aws.String("RUNNING"))
+	if err != nil {
+		return nil, err
+	}
+	stoppedTasks, err := GetAllTasksByDefinitionStatus(cluster, def, aws.String("STOPPED"))
+	if err != nil {
+		return nil, err
+	}
+	return append(runningTasks, stoppedTasks...), nil
+}
+
+// GetAllTasksByDefinitionStatus gets all of the tasks of a certain status
+// for a task definition
+func GetAllTasksByDefinitionStatus(cluster string, def *ecs.TaskDefinition, status *string) ([]*ecs.Task, error) {
 	svc := assertECS()
 	params := &ecs.ListTasksInput{
-		Cluster: aws.String(cluster),
-		Family:  def.Family,
+		Cluster:       aws.String(cluster),
+		Family:        def.Family,
+		DesiredStatus: status,
 	}
 	allArns := make([]*string, 0)
 	svc.ListTasksPages(params, func(page *ecs.ListTasksOutput, lastPage bool) bool {
 		allArns = append(allArns, page.TaskArns...)
 		return !lastPage
 	})
+	maxTasks := len(allArns)
+	if maxTasks > 100 {
+		maxTasks = 100
+	}
 	tasks, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
 		Cluster: aws.String(cluster),
-		Tasks:   allArns,
+		Tasks:   allArns[:maxTasks],
 	})
 	if err != nil {
 		return nil, err
