@@ -405,6 +405,7 @@ func GetAllTasksByDefinition(cluster string, def *ecs.TaskDefinition) ([]*ecs.Ta
 		return nil, err
 	}
 	stoppedTasks, err := GetAllTasksByDefinitionStatus(cluster, def, aws.String("STOPPED"))
+	fmt.Printf("%v", stoppedTasks)
 	if err != nil {
 		return nil, err
 	}
@@ -428,6 +429,9 @@ func GetAllTasksByDefinitionStatus(cluster string, def *ecs.TaskDefinition, stat
 	maxTasks := len(allArns)
 	if maxTasks > 100 {
 		maxTasks = 100
+	}
+	if maxTasks == 0 {
+		return make([]*ecs.Task, 0), nil
 	}
 	tasks, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
 		Cluster: aws.String(cluster),
