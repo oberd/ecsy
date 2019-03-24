@@ -399,15 +399,21 @@ func BuildConsoleURLForService(cluster, service string) string {
 
 // GetAllTasksByDefinition gets the tasks that have run recently for a
 // cluster and service
-func GetAllTasksByDefinition(cluster string, def *ecs.TaskDefinition) ([]*ecs.Task, error) {
+func GetAllTasksByDefinition(cluster string, def *ecs.TaskDefinition, status string) ([]*ecs.Task, error) {
 	runningTasks, err := GetAllTasksByDefinitionStatus(cluster, def, aws.String("RUNNING"))
 	if err != nil {
 		return nil, err
 	}
 	stoppedTasks, err := GetAllTasksByDefinitionStatus(cluster, def, aws.String("STOPPED"))
-	fmt.Printf("%v", stoppedTasks)
 	if err != nil {
 		return nil, err
+	}
+	fmt.Printf("Task Summary: [%d] running, [%d] stopped\n", len(runningTasks), len(stoppedTasks))
+	if status == "running" {
+		return runningTasks, nil
+	}
+	if status == "stopped" {
+		return stoppedTasks, nil
 	}
 	return append(runningTasks, stoppedTasks...), nil
 }
@@ -445,12 +451,12 @@ func GetAllTasksByDefinitionStatus(cluster string, def *ecs.TaskDefinition, stat
 
 // GetLogs returns cloudwatch logs for a specific set of log streams
 // matching a pattern within a log group and region
-func GetLogs(cluster, service string) error {
+func GetLogs(cluster, service, status string) error {
 	def, err := GetCurrentTaskDefinition(cluster, service)
 	if err != nil {
 		return err
 	}
-	allTasks, err := GetAllTasksByDefinition(cluster, def)
+	allTasks, err := GetAllTasksByDefinition(cluster, def, status)
 	if err != nil {
 		return fmt.Errorf("Problem getting tasks by definition: %v", err)
 	}
