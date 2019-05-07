@@ -64,7 +64,7 @@ func NewYAMLFile() *YAMLFile {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return &YAMLFile{path: fmt.Sprintf("%s/.ecs-commander.yaml", usr.HomeDir)}
+	return &YAMLFile{path: fmt.Sprintf("%s/.ecsy.yaml", usr.HomeDir)}
 }
 
 // ReadYAMLFile Sets the file to be used for storing config
