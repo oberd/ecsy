@@ -34,7 +34,7 @@ Use "ecsy [command] --help" for more information about a command.
 Example (v0.1.11)
 
 ```
-wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.0.11/ecsy-v0.1.11-darwin-amd64
+wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.1.11/ecsy-v0.1.11-darwin-amd64
 chmod +x /usr/local/bin/ecsy
 ```
 
