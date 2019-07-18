@@ -720,7 +720,7 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 		reader.Comma = ' '
 		commands, err := reader.Read()
 		if err != nil {
-			return err
+			return fmt.Errorf("command syntax invalid: %v", err)
 		}
 
 		overrides := ecsCommandOverrideJSON{
