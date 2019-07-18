@@ -2,8 +2,8 @@ package ecs
 
 import (
 	"bufio"
-	"encoding/json"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
