@@ -715,11 +715,15 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 		target.RoleArn = role.Arn
 	}
 	if command != "" {
+		commands, err := parseCommandOverride(command)
+		if err != nil {
+			return fmt.Errorf("command syntax invalid: %v", err)
+		}
 		overrides := ecsCommandOverrideJSON{
 			ContainerOverrides: []containerOverride{
 				containerOverride{
 					ContainerName: *taskDefinition.ContainerDefinitions[0].Name,
-					Command:       strings.Split(command, " "),
+					Command:       commands,
 				},
 			},
 		}
