@@ -717,7 +717,7 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 	if command != "" {
 		commands, err := parseCommandOverride(command)
 		if err != nil {
-			return fmt.Errorf("error in command format: %v", err)
+			return fmt.Errorf("command syntax invalid: %v", err)
 		}
 		overrides := ecsCommandOverrideJSON{
 			ContainerOverrides: []containerOverride{
