@@ -2,7 +2,6 @@ package ecs
 
 import (
 	"bufio"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -716,13 +715,10 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 		target.RoleArn = role.Arn
 	}
 	if command != "" {
-		reader := csv.NewReader(strings.NewReader(command))
-		reader.Comma = ' '
-		commands, err := reader.Read()
+		commands, err := parseCommandOverride(command)
 		if err != nil {
-			return err
+			return fmt.Errorf("error in command format: %v", err)
 		}
-
 		overrides := ecsCommandOverrideJSON{
 			ContainerOverrides: []containerOverride{
 				containerOverride{
