@@ -716,12 +716,12 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 		target.RoleArn = role.Arn
 	}
 	if command != "" {
-	    reader := csv.NewReader(strings.NewReader(command))
-        reader.Comma = ' '
-        commands, err := reader.Read()
-        if err != nil {
-            return err
-        }
+		reader := csv.NewReader(strings.NewReader(command))
+		reader.Comma = ' '
+		commands, err := reader.Read()
+		if err != nil {
+			return err
+		}
 
 		overrides := ecsCommandOverrideJSON{
 			ContainerOverrides: []containerOverride{
