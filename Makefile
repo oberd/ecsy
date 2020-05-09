@@ -1,5 +1,5 @@
 LAST_TAG := $(shell git describe --abbrev=0 --tags)
-all: release-deps deps install release
+all: release-deps install release
 
 clean:
 	@rm -rf dist && mkdir dist
