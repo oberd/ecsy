@@ -20,7 +20,11 @@ var deployNewServiceImageCmd = &cobra.Command{
         if len(args) != 3 {
             failOnError(fmt.Errorf("please specify an image"), "bad arguments")
         }
-        newTask, err := ecs.CreateNewTaskWithImage(def, args[2])
+        newTask, err := ecs.FindNewestDefinition(*def.Family)
+        if err != nil || ecs.EssentialImage(newTask) != ecs.EssentialImage(def) {
+            newTask, err = ecs.CreateNewTaskWithImage(def, args[2])
+            failOnError(err, "create new task def")
+        }
         svc, err := ecs.DeployTaskToService(cluster, service, newTask)
         failOnError(err, "updating service task")
         fmt.Printf("updated service %s with task definition %s (deploying to %d containers)", *svc.ServiceArn, *newTask.TaskDefinitionArn, *svc.DesiredCount)

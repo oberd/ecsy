@@ -289,17 +289,21 @@ func CreateNewTaskWithImage(existingTask *ecs.TaskDefinition, imageUrl string) (
 }
 
 func updateEssential(existingTask *ecs.TaskDefinition, configure func (definition *ecs.ContainerDefinition)) (*ecs.TaskDefinition, error) {
-    var found bool
-    for _, def := range existingTask.ContainerDefinitions {
-        if *def.Essential {
-            configure(def)
-            found = true
-        }
-    }
-    if !found {
+    essential := findEssential(existingTask)
+    if essential == nil {
         return nil, fmt.Errorf("error finding essential container, does the task %s have a container marked as essential", existingTask.GoString())
     }
+    configure(essential)
     return saveTaskDef(existingTask)
+}
+
+func findEssential(task *ecs.TaskDefinition) *ecs.ContainerDefinition {
+    for _, def := range task.ContainerDefinitions {
+        if *def.Essential {
+            return def
+        }
+    }
+    return nil
 }
 
 func saveTaskDef(existingTask *ecs.TaskDefinition) (*ecs.TaskDefinition, error) {
@@ -315,6 +319,14 @@ func saveTaskDef(existingTask *ecs.TaskDefinition) (*ecs.TaskDefinition, error) 
     return newTaskDef.TaskDefinition, nil
 }
 
+//EssentialImage returns the essential image of a task def
+func EssentialImage(task *ecs.TaskDefinition) (string) {
+    essential := findEssential(task)
+    if essential == nil {
+        return ""
+    }
+    return *essential.Image
+}
 
 
 // FindService finds a service struct by name
