@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/aws/aws-sdk-go v1.33.5
+	github.com/c4milo/github-release v1.1.0 // indirect
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/docker/machine v0.16.2
 	github.com/dustin/go-humanize v1.0.0 // indirect

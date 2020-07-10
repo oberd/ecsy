@@ -33,7 +33,7 @@ var updateCmd = &cobra.Command{
 		response.Body.Close()
 		releases := make([]release, 0)
 		json.Unmarshal(body, &releases)
-		suffix := "darwin-amd64"
+		suffix := "linux"
 		if runtime.GOOS == "darwin" {
 			suffix = "darwin-amd64"
 		}

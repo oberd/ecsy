@@ -1,5 +1,5 @@
 LAST_TAG := $(shell git describe --abbrev=0 --tags)
-all: release-deps deps install release
+all: release-deps install release
 
 clean:
 	@rm -rf dist && mkdir dist
@@ -10,9 +10,6 @@ compile: clean
 
 release-deps:
 	go get github.com/c4milo/github-release
-
-deps:
-	go list -f '{{join .Deps "\n"}}' | xargs go list -e -f '{{if not .Standard}}{{.ImportPath}}{{end}}' | xargs go get -u
 
 install:
 	go install -ldflags "-X main.Version=v1.0.8"
