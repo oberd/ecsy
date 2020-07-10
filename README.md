@@ -29,13 +29,22 @@ Flags:
 Use "ecsy [command] --help" for more information about a command.
 ```
 
-#### Installation (OSX only for now)
+#### Installation
 
-Example (v0.1.11)
+Example (v0.2.3)
+
+##### OSX
 
 ```
-wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.1.11/ecsy-v0.1.11-darwin-amd64
+wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.2.3/ecsy-v0.2.3-darwin-amd64
 chmod +x /usr/local/bin/ecsy
+```
+
+##### Linux
+
+```
+sudo wget -O /usr/local/bin/ecsy https://github.com/oberd/ecsy/releases/download/v0.2.3/ecsy-v0.2.3-linux
+sudo chmod +x /usr/local/bin/ecsy
 ```
 
 #### Updating
