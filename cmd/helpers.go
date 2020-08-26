@@ -92,6 +92,14 @@ func Validate2ArgumentsCount(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// Validate4ArgumentsCount simply validates that there are two arguments
+func Validate4ArgumentsCount(cmd *cobra.Command, args []string) error {
+    if len(args) != 4 {
+        return fmt.Errorf("not enough arguments supplied")
+    }
+    return nil
+}
+
 // EditStringBlock delegates the editing of a string block
 // to an editor of choice, similar to git commit, or git rebase
 func EditStringBlock(input string) (output string, err error) {
