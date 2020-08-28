@@ -11,9 +11,6 @@ compile: clean
 release-deps:
 	go get github.com/c4milo/github-release
 
-deps:
-	go list -f '{{join .Deps "\n"}}' | xargs go list -e -f '{{if not .Standard}}{{.ImportPath}}{{end}}' | xargs go get -u
-
 install:
 	go install -ldflags "-X main.Version=v1.0.8"
 
