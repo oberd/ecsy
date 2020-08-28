@@ -6,21 +6,24 @@ Usage:
   ecsy [command]
 
 Available Commands:
-  add           Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
-  describe      Show current task configuration for service
-  env           Used to manage environment variables of service task definitions
-  events        Show recent events for a service in a cluster
-  help          Help about any command
-  logs          Show recent logs for a service in a cluster (must be cloudwatch based)
-  ports         List out exposed service ports for creating new services
-  run           Run an ssh command on all the servers in a cluster
-  run-task      Run an individual task into an ECS cluster
-  scale         Set the number of desired instances of a service
-  schedule-task Creates a scheduled task with a command override
-  self-update   Update the ecsy cli binary on your system
-  ssh           Secure Shell into one of the service container instances' EC2 host machines
-  status        View current cluster or service deployment status
-  update-agent  Update the Container Instance Agents
+  add                  Associates a .pem SSH key with a cluster, allowing SSH into EC2 instances
+  create-task-revision duplicate a task definition into a new revision with a different image
+  deploy               deploys a new image to a cluster service
+  deploy-newest-task   deploy newest task definition to a service
+  describe             Show current task configuration for service
+  env                  Used to manage environment variables of service task definitions
+  events               Show recent events for a service in a cluster
+  help                 Help about any command
+  logs                 Show recent logs for a service in a cluster (must be cloudwatch based)
+  ports                List out exposed service ports for creating new services
+  run                  Run an ssh command on all the servers in a cluster
+  run-task             Run an individual task into an ECS cluster
+  scale                Set the number of desired instances of a service
+  schedule-task        Creates a scheduled task with a command override
+  self-update          Update the ecsy cli binary on your system
+  ssh                  Secure Shell into one of the service container instances' EC2 host machines
+  status               View current cluster or service deployment status
+  update-agent         Update the Container Instance Agents
 
 Flags:
       --config string   config file (default is $HOME/.ecsy.yaml)
