@@ -25,6 +25,7 @@ import (
 )
 
 var runTaskWait = false
+var taskDefinitionSource = "newest"
 
 // runTaskCmd represents the runTask command
 var runTaskCmd = &cobra.Command{
@@ -50,7 +51,8 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 			failOnError(fmt.Errorf("Not enough arguments"), "")
 		}
 		command := args[2]
-		output, err := ecs.RunTaskWithCommand(cluster, service, command)
+		def, err := ecs.LocateTaskDef(cluster, service, taskDefinitionSource)
+		output, err := ecs.RunTaskWithCommand(cluster, def, command)
 		if err != nil {
 			log.Fatalf("%v\n", err)
 			return
@@ -61,7 +63,6 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 			}
 			return
 		}
-		task := output.Tasks[0]
 		taskID := ecs.GetTaskIDFromArn(*output.Tasks[0].TaskArn)
 		detailsLink := fmt.Sprintf(
 			"https://us-west-2.console.aws.amazon.com/ecs/home?region=us-west-2#/clusters/%s/tasks/%s/details",
@@ -70,27 +71,22 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 		)
 		fmt.Printf("=> Created Task: %s\n", detailsLink)
 		if runTaskWait {
+			var exitCode *int64
 			fmt.Printf("==> Waiting for task to complete...\n")
-			exitCode, err := ecs.TaskExitCode(task)
-			if err != nil {
-				log.Fatalf("%v\n", err)
-				return
-			}
 			for exitCode == nil {
-				time.Sleep(time.Second * 5)
+				task, err := ecs.GetTask(cluster, *output.Tasks[0].TaskArn)
+				if err != nil {
+					log.Fatalln("could not find task", err)
+				}
+				time.Sleep(time.Second * 2)
 				exitCode, err = ecs.TaskExitCode(task)
 			}
 			if err != nil {
 				log.Fatalf("%v\n", err)
 				return
 			}
-			definition, err := ecs.GetTaskDefinition(*task.TaskDefinitionArn)
-			if err != nil {
-				log.Printf("Unable to read current task definition: %v\n", err)
-				return
-			}
 			fmt.Printf("==> Retrieving Container Log Output\n")
-			err = ecs.GetTaskLogs(definition, taskID)
+			err = ecs.GetTaskLogs(def, taskID)
 			if err != nil {
 				log.Printf("Unable to read logs: %v\n", err)
 			}
@@ -107,5 +103,6 @@ ecsy run-task medamine indexer-worker 'bin/snapshot --configuration assets/medam
 
 func init() {
 	RootCmd.AddCommand(runTaskCmd)
+	runTaskCmd.Flags().StringVarP(&taskDefinitionSource, "task-definition-source", "s", "newest", `locator for task definition ("newest" will use the newest in the family of the service, "current" will use the currently deployed)`)
 	runTaskCmd.Flags().BoolVarP(&runTaskWait, "wait", "w", false, "Wait for completion of task")
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"sort"
@@ -162,6 +163,27 @@ func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, err
 	return nil, fmt.Errorf("error finding service with name %s in cluster %s, %d results found", service, cluster, len(result.Services))
 }
 
+func GetNewestTaskDefinition(cluster, service string) (*ecs.TaskDefinition, error) {
+	def, err := GetCurrentTaskDefinition(cluster, service)
+	if err != nil {
+		return nil, err
+	}
+	svc := assertECS()
+	input := &ecs.ListTaskDefinitionsInput{
+		FamilyPrefix: def.Family,
+		Sort:         aws.String("DESC"),
+		MaxResults:   aws.Int64(1),
+	}
+	results, err := svc.ListTaskDefinitions(input)
+	if err != nil {
+		return nil, err
+	}
+	if len(results.TaskDefinitionArns) == 0 {
+		return nil, fmt.Errorf("task definitions not found for family %s", *def.Family)
+	}
+	return GetTaskDefinition(*results.TaskDefinitionArns[0])
+}
+
 // GetTaskDefinition returns a task definition by arn
 func GetTaskDefinition(arn string) (*ecs.TaskDefinition, error) {
 	svc := assertECS()
@@ -272,62 +294,61 @@ func GetContainerInstances(cluster string, service string) ([]string, error) {
 // CreateNewTaskWithEnvironment registers a new task, based on the passed task,
 // but with new environment.
 func CreateNewTaskWithEnvironment(existingTask *ecs.TaskDefinition, env []*ecs.KeyValuePair) (*ecs.TaskDefinition, error) {
-    return updateEssential(existingTask, func (container *ecs.ContainerDefinition) {
-        container.SetEnvironment(env)
-    })
+	return updateEssential(existingTask, func(container *ecs.ContainerDefinition) {
+		container.SetEnvironment(env)
+	})
 }
 
 // CreateNewTaskWithImage registers a new task, based on the passed task,
 // but with new image.
-func CreateNewTaskWithImage(existingTask *ecs.TaskDefinition, imageUrl string) (*ecs.TaskDefinition, error) {
-    if imageUrl == "" {
-        return nil, fmt.Errorf("invalid imageUrl: empty")
-    }
-    return updateEssential(existingTask, func (container *ecs.ContainerDefinition) {
-        container.SetImage(imageUrl)
-    })
+func CreateNewTaskWithImage(existingTask *ecs.TaskDefinition, imageURL string) (*ecs.TaskDefinition, error) {
+	if imageURL == "" {
+		return nil, fmt.Errorf("invalid imageUrl: empty")
+	}
+	return updateEssential(existingTask, func(container *ecs.ContainerDefinition) {
+		container.SetImage(imageURL)
+	})
 }
 
-func updateEssential(existingTask *ecs.TaskDefinition, configure func (definition *ecs.ContainerDefinition)) (*ecs.TaskDefinition, error) {
-    essential := findEssential(existingTask)
-    if essential == nil {
-        return nil, fmt.Errorf("error finding essential container, does the task %s have a container marked as essential", existingTask.GoString())
-    }
-    configure(essential)
-    return saveTaskDef(existingTask)
+func updateEssential(existingTask *ecs.TaskDefinition, configure func(definition *ecs.ContainerDefinition)) (*ecs.TaskDefinition, error) {
+	essential := findEssential(existingTask)
+	if essential == nil {
+		return nil, fmt.Errorf("error finding essential container, does the task %s have a container marked as essential", existingTask.GoString())
+	}
+	configure(essential)
+	return saveTaskDef(existingTask)
 }
 
 func findEssential(task *ecs.TaskDefinition) *ecs.ContainerDefinition {
-    for _, def := range task.ContainerDefinitions {
-        if *def.Essential {
-            return def
-        }
-    }
-    return nil
+	for _, def := range task.ContainerDefinitions {
+		if *def.Essential {
+			return def
+		}
+	}
+	return nil
 }
 
 func saveTaskDef(existingTask *ecs.TaskDefinition) (*ecs.TaskDefinition, error) {
-    svc := assertECS()
-    input := &ecs.RegisterTaskDefinitionInput{}
-    input.SetContainerDefinitions(existingTask.ContainerDefinitions)
-    input.SetFamily(*existingTask.Family)
-    input.SetVolumes(existingTask.Volumes)
-    newTaskDef, err := svc.RegisterTaskDefinition(input)
-    if err != nil {
-        return nil, err
-    }
-    return newTaskDef.TaskDefinition, nil
+	svc := assertECS()
+	input := &ecs.RegisterTaskDefinitionInput{}
+	input.SetContainerDefinitions(existingTask.ContainerDefinitions)
+	input.SetFamily(*existingTask.Family)
+	input.SetVolumes(existingTask.Volumes)
+	newTaskDef, err := svc.RegisterTaskDefinition(input)
+	if err != nil {
+		return nil, err
+	}
+	return newTaskDef.TaskDefinition, nil
 }
 
 //EssentialImage returns the essential image of a task def
-func EssentialImage(task *ecs.TaskDefinition) (string) {
-    essential := findEssential(task)
-    if essential == nil {
-        return ""
-    }
-    return *essential.Image
+func EssentialImage(task *ecs.TaskDefinition) string {
+	essential := findEssential(task)
+	if essential == nil {
+		return ""
+	}
+	return *essential.Image
 }
-
 
 // FindService finds a service struct by name
 func FindService(cluster, service string) (*ecs.Service, error) {
@@ -367,23 +388,23 @@ func ListServices(cluster string) ([]string, error) {
 // FindNewestDefinition finds the most recent task definition of the service's
 // task family
 func FindNewestDefinition(familyPrefix string) (*ecs.TaskDefinition, error) {
-    svc := assertECS()
-    result, err := svc.ListTaskDefinitions(&ecs.ListTaskDefinitionsInput{
-        FamilyPrefix: aws.String(familyPrefix),
-        Sort: aws.String("DESC"),
-        MaxResults: aws.Int64(1),
-    })
-    if err != nil {
-        return nil, err
-    }
-    if len(result.TaskDefinitionArns) == 0 {
-        return nil, fmt.Errorf("could not find any task definitions for family %s", familyPrefix)
-    }
-    taskResult, err := svc.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{TaskDefinition: result.TaskDefinitionArns[0] })
-    if err != nil {
-        return nil, err
-    }
-    return taskResult.TaskDefinition, nil
+	svc := assertECS()
+	result, err := svc.ListTaskDefinitions(&ecs.ListTaskDefinitionsInput{
+		FamilyPrefix: aws.String(familyPrefix),
+		Sort:         aws.String("DESC"),
+		MaxResults:   aws.Int64(1),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.TaskDefinitionArns) == 0 {
+		return nil, fmt.Errorf("could not find any task definitions for family %s", familyPrefix)
+	}
+	taskResult, err := svc.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{TaskDefinition: result.TaskDefinitionArns[0]})
+	if err != nil {
+		return nil, err
+	}
+	return taskResult.TaskDefinition, nil
 }
 
 // DeployTaskToService deploys a given task definition to a cluster/service
@@ -649,14 +670,17 @@ func ListLogEvents(group, name, region string) error {
 	return nil
 }
 
+func LocateTaskDef(cluster, service, source string) (*ecs.TaskDefinition, error) {
+	if source == "newest" {
+		return GetNewestTaskDefinition(cluster, service)
+	}
+	return GetCurrentTaskDefinition(cluster, service)
+}
+
 // RunTaskWithCommand runs a one-off task with a command
 // override.
-func RunTaskWithCommand(cluster, service, command string) (*ecs.RunTaskOutput, error) {
+func RunTaskWithCommand(cluster string, task *ecs.TaskDefinition, command string) (*ecs.RunTaskOutput, error) {
 	svc := assertECS()
-	task, err := GetCurrentTaskDefinition(cluster, service)
-	if err != nil {
-		return nil, err
-	}
 	commandParts := strings.Split(command, " ")
 	commandPointers := make([]*string, len(commandParts))
 	for i := 0; i < len(commandParts); i++ {
@@ -805,6 +829,21 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 	return nil
 }
 
+func GetTask(cluster, arn string) (*ecs.Task, error) {
+	svc := assertECS()
+	result, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: aws.String(cluster),
+		Tasks:   []*string{aws.String(arn)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Tasks) == 0 {
+		return nil, fmt.Errorf("task %s not found", arn)
+	}
+	return result.Tasks[0], nil
+}
+
 // TaskExitCode  will tell you if the exit code of a task
 func TaskExitCode(task *ecs.Task) (*int64, error) {
 	svc := assertECS()
@@ -823,8 +862,24 @@ func TaskExitCode(task *ecs.Task) (*int64, error) {
 			task.TaskArn,
 		)
 	}
-	outputTask := output.Tasks[0]
+	if len(output.Failures) > 0 {
+		concat := ""
+		for _, f := range output.Failures {
+			concat += f.String()
+		}
+		var exit int64 = 1
+		return &exit, fmt.Errorf("%s", concat)
+	}
 	var exitCode int64 = 0
+	log.Println("status:", *task.LastStatus)
+	if *task.LastStatus == "STOPPED" {
+		if *task.StopCode == "TaskFailedToStart" {
+			exitCode = 1
+			err = fmt.Errorf("task exited with error %s", task.String())
+		}
+		return &exitCode, err
+	}
+	outputTask := output.Tasks[0]
 	for _, container := range outputTask.Containers {
 		if container.ExitCode == nil {
 			return nil, nil
