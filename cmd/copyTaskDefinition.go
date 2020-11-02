@@ -14,7 +14,10 @@ var newFamilyName string
 var copyTaskDefinitionCmd = &cobra.Command{
     Use:   "copy-task-revision [cluster] [service] --image --task-definition-source --family-name --command-override",
     Short: "duplicate a task definition into a new revision with a different image",
-    Long:  ``,
+    Long:  `
+example:
+    ecsy copy-task-revision oberd-prod-mx care-guide-mx -s newest --family-name care-guide-mx-inbox-prod -c 'php artisan queue:work sqs-sns'
+`,
     RunE: func(cmd *cobra.Command, args []string) error {
         if newFamilyName == "" {
             return errors.New("Please specify a family name for the new definition")
