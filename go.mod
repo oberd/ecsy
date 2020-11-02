@@ -11,6 +11,7 @@ require (
 	github.com/jcelliott/lumber v0.0.0-20160324203708-dd349441af25 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/nnnnathann/ssh v0.0.0-20170403153053-49937b268da2
+	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.1

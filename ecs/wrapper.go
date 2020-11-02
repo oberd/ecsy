@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
+    "github.com/pkg/errors"
+    "log"
 	"os"
 	"path"
 	"sort"
@@ -309,6 +310,52 @@ func CreateNewTaskWithImage(existingTask *ecs.TaskDefinition, imageURL string) (
 		container.SetImage(imageURL)
 	})
 }
+
+func WithCommand(command string) func (definition *ecs.ContainerDefinition) {
+    return func (def *ecs.ContainerDefinition) {
+        parts, err := parseCommandOverride(command)
+        if err != nil {
+            log.Fatalln(err)
+        }
+        if len(parts) == 0 {
+            return
+        }
+        def.SetCommand(mapCommandStrPointer(parts))
+    }
+}
+
+func WithName(name string) func (definition *ecs.ContainerDefinition) {
+    return func (def *ecs.ContainerDefinition) {
+        def.SetName(name)
+    }
+}
+
+// CopyTaskDefinitionWithCommand registers a new task, based on the passed task,
+// but with new command.
+func CopyTaskDefinition(existingTask *ecs.TaskDefinition, toFamilyName string, modifiers... func (*ecs.ContainerDefinition)) (*ecs.TaskDefinition, error) {
+    svc := assertECS()
+    newTask := &ecs.TaskDefinition{
+        ContainerDefinitions: existingTask.ContainerDefinitions,
+        Family: aws.String(toFamilyName),
+    }
+    essential := findEssential(existingTask)
+    if essential == nil {
+        return nil, errors.New("essential container not found")
+    }
+    WithName(toFamilyName)(essential)
+    for _, modifier := range modifiers {
+        modifier(essential)
+    }
+    output, err := svc.RegisterTaskDefinition(&ecs.RegisterTaskDefinitionInput{
+        Family: newTask.Family,
+        ContainerDefinitions: newTask.ContainerDefinitions,
+    })
+    if err != nil {
+        return nil, errors.Wrap(err, "task registration")
+    }
+    return output.TaskDefinition, nil
+}
+
 
 func updateEssential(existingTask *ecs.TaskDefinition, configure func(definition *ecs.ContainerDefinition)) (*ecs.TaskDefinition, error) {
 	essential := findEssential(existingTask)
@@ -681,11 +728,11 @@ func LocateTaskDef(cluster, service, source string) (*ecs.TaskDefinition, error)
 // override.
 func RunTaskWithCommand(cluster string, task *ecs.TaskDefinition, command string) (*ecs.RunTaskOutput, error) {
 	svc := assertECS()
-	commandParts := strings.Split(command, " ")
-	commandPointers := make([]*string, len(commandParts))
-	for i := 0; i < len(commandParts); i++ {
-		commandPointers[i] = aws.String(strings.Trim(commandParts[i], " "))
-	}
+	commandParts, err := parseCommandOverride(command)
+	if err != nil {
+	    return nil, err
+    }
+	commandPointers := mapCommandStrPointer(commandParts)
 	return svc.RunTask(&ecs.RunTaskInput{
 		Cluster:        aws.String(cluster),
 		TaskDefinition: task.TaskDefinitionArn,
@@ -698,6 +745,14 @@ func RunTaskWithCommand(cluster string, task *ecs.TaskDefinition, command string
 			},
 		},
 	})
+}
+
+func mapCommandStrPointer(parts []string) []*string {
+    commandPointers := make([]*string, len(parts))
+    for i := 0; i < len(parts); i++ {
+        commandPointers[i] = aws.String(strings.Trim(parts[i], " "))
+    }
+    return commandPointers
 }
 
 // FindRoleByName paginates through roles and returns
