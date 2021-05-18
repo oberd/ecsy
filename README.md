@@ -15,6 +15,8 @@ Available Commands:
   env                  Used to manage environment variables of service task definitions
   events               Show recent events for a service in a cluster
   help                 Help about any command
+  list-clusters        lists clusters
+  list-services        list services in a cluster
   logs                 Show recent logs for a service in a cluster (must be cloudwatch based)
   ports                List out exposed service ports for creating new services
   run                  Run an ssh command on all the servers in a cluster
