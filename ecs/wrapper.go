@@ -891,3 +891,13 @@ func TaskExitCode(task *ecs.Task) (*int64, error) {
 	}
 	return &exitCode, nil
 }
+
+func RefreshInstances(cluster, service string) error {
+	svc := assertECS()
+	_, err := svc.UpdateService(&ecs.UpdateServiceInput{
+		Cluster:            aws.String(cluster),
+		Service:            aws.String(service),
+		ForceNewDeployment: aws.Bool(true),
+	})
+	return err
+}
