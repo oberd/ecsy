@@ -9,7 +9,7 @@ compile: clean
 	GOOS=linux CGO_ENABLED=0 go build -o dist/ecsy-$(LAST_TAG)-linux *.go
 
 release-deps:
-	go get github.com/c4milo/github-release
+	go install github.com/c4milo/github-release
 
 install:
 	go install -ldflags "-X main.Version=v1.0.8"
