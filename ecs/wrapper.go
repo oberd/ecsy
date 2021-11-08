@@ -756,7 +756,7 @@ func RunTaskWithCommand(cluster string, task *ecs.TaskDefinition, command string
 		TaskDefinition: task.TaskDefinitionArn,
 		Overrides: &ecs.TaskOverride{
 			ContainerOverrides: []*ecs.ContainerOverride{
-				&ecs.ContainerOverride{
+				{
 					Name:    task.ContainerDefinitions[0].Name,
 					Command: commandPointers,
 				},
@@ -812,35 +812,35 @@ type ecsCommandOverrideJSON struct {
 // with the specified paramters
 func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, command string) error {
 	svc := assertCloudWatchEvents()
-	name := strings.Join([]string{
-		cluster,
-		service,
-		taskSuffix,
-	}, "-")
 	clusters, err := assertClusterMap()
 	if err != nil {
 		return fmt.Errorf("unable create cluster definitions map: %v", err)
 	}
 	clusterArn := clusters[cluster]
+	ruleName := strings.Join([]string{
+		cluster,
+		service,
+		taskSuffix,
+	}, "-")
 	taskDefinition, err := GetCurrentTaskDefinition(cluster, service)
 	if err != nil {
 		return fmt.Errorf("unable to find current task definition: %v", err)
 	}
 	result, err := svc.ListRules(&cloudwatchevents.ListRulesInput{
-		NamePrefix: aws.String(name),
+		NamePrefix: aws.String(ruleName),
 		Limit:      aws.Int64(100),
 	})
 	if err != nil {
 		return fmt.Errorf("unable to list event rules: %v", err)
 	}
 	if len(result.Rules) == 0 {
-		fmt.Printf("Creating Scheduled Task: %v\n", name)
+		fmt.Printf("Creating Scheduled Task: %v\n", ruleName)
 	} else {
-		fmt.Printf("Updated Scheduled Task: %v\n", name)
+		fmt.Printf("Updated Scheduled Task: %v\n", ruleName)
 	}
 	_, err = svc.PutRule(
 		&cloudwatchevents.PutRuleInput{
-			Name:               aws.String(name),
+			Name:               aws.String(ruleName),
 			ScheduleExpression: aws.String(scheduleExpression),
 			Description: aws.String(fmt.Sprintf(
 				"Schedule Expression for %v Service in %v ECS Cluster",
@@ -852,6 +852,106 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 	if err != nil {
 		return fmt.Errorf("unable to create or update event rule: %v", err)
 	}
+	return createTaskTarget(clusterArn, service, taskDefinition, ruleName, command)
+}
+
+// CreatePostDeploymentTaskInput parameterizes the CreatePostDeploymentTask command
+type CreatePostDeploymentTaskInput struct {
+	SourceCluster string
+	SourceService string
+	TargetCluster string
+	TargetService string
+	Command       string
+}
+
+// CreatePostDeploymentTask listens for SERVICE_STEADY_STATE events matching the service
+// and cluster, and runs a custom command when a deployment is complete
+func CreatePostDeploymentTask(input *CreatePostDeploymentTaskInput) error {
+	svc := assertCloudWatchEvents()
+	clusters, err := assertClusterMap()
+	if err != nil {
+		return fmt.Errorf("unable create cluster definitions map: %v", err)
+	}
+	ruleName := strings.Join([]string{
+		input.SourceCluster,
+		input.SourceService,
+		"stable",
+		input.TargetCluster,
+		input.TargetService,
+	}, "-")
+	if len(ruleName) > 64 {
+		ruleName = ruleName[0:64]
+	}
+	taskDefinition, err := GetNewestTaskDefinition(input.TargetCluster, input.TargetService)
+	if err != nil {
+		return fmt.Errorf("unable to find current task definition: %v", err)
+	}
+	result, err := svc.ListRules(&cloudwatchevents.ListRulesInput{
+		NamePrefix: aws.String(ruleName),
+		Limit:      aws.Int64(100),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to list event rules: %v", err)
+	}
+	if len(result.Rules) == 0 {
+		fmt.Printf("Creating Post-Deployment Task: %v\n", ruleName)
+	} else {
+		fmt.Printf("Updating Post-Deployment Task: %v\n", ruleName)
+	}
+	eventPattern, err := createPostDeploymentPattern(input.SourceCluster, input.SourceService)
+	if err != nil {
+		return fmt.Errorf("unable to create event pattern: %v", err)
+	}
+	_, err = svc.PutRule(
+		&cloudwatchevents.PutRuleInput{
+			Name:         aws.String(ruleName),
+			EventPattern: aws.String(eventPattern),
+			Description: aws.String(fmt.Sprintf(
+				"Post-Deployment Expression for %v Service in %v ECS Cluster",
+				input.SourceService,
+				input.SourceCluster,
+			)),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create or update event rule: %v", err)
+	}
+	return createTaskTarget(clusters[input.TargetCluster], input.TargetService, taskDefinition, ruleName, input.Command)
+}
+
+func createPostDeploymentPattern(cluster, service string) (string, error) {
+	return createEventPattern(cluster, service, "ECS Service Action", "SERVICE_STEADY_STATE")
+}
+
+type eventPattern struct {
+	Source     []string `json:"source"`
+	DetailType []string `json:"detail-type"`
+	Resources  []string `json:"resources"`
+	Detail     struct {
+		EventName []string `json:"eventName"`
+	} `json:"detail"`
+}
+
+func createEventPattern(cluster, service, detailType, eventType string) (string, error) {
+	ecsService, err := FindService(cluster, service)
+	if err != nil {
+		return "", fmt.Errorf("unable to find service: %v", err)
+	}
+	pattern := &eventPattern{
+		Source:     []string{"aws.ecs"},
+		DetailType: []string{detailType},
+		Resources:  []string{*ecsService.ServiceArn},
+	}
+	pattern.Detail.EventName = []string{eventType}
+	eventJSON, err := json.Marshal(pattern)
+	if err != nil {
+		return "", fmt.Errorf("unable to marshal event pattern: %v", err)
+	}
+	return string(eventJSON), nil
+}
+
+func createTaskTarget(clusterArn string, serviceName string, taskDefinition *ecs.TaskDefinition, ruleName, command string) error {
+	svc := assertCloudWatchEvents()
 	target := &cloudwatchevents.Target{
 		Id:      aws.String("1"),
 		Arn:     aws.String(clusterArn),
@@ -884,21 +984,13 @@ func CreateScheduledTask(cluster, service, taskSuffix, scheduleExpression, comma
 		inputJSON, _ := json.Marshal(overrides)
 		target.Input = aws.String(string(inputJSON))
 	}
-	_, err = svc.PutTargets(&cloudwatchevents.PutTargetsInput{
-		Rule:    aws.String(name),
+	_, err := svc.PutTargets(&cloudwatchevents.PutTargetsInput{
+		Rule:    aws.String(ruleName),
 		Targets: []*cloudwatchevents.Target{target},
 	})
 	if err != nil {
 		return fmt.Errorf("unable to create or update targets %v", err)
 	}
-	url := fmt.Sprintf(
-		"https://%s.console.aws.amazon.com/ecs/home?region=%s#/clusters/%s/scheduledTasks/%s",
-		*getServiceConfiguration().Region,
-		*getServiceConfiguration().Region,
-		cluster,
-		name,
-	)
-	fmt.Printf("Created or updated target: %v\n", url)
 	return nil
 }
 
