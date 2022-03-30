@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/oberd/ecsy/ecs"
@@ -15,9 +16,12 @@ var poll bool
 func printServiceStatus(cluster, service string) bool {
 	serviceObj, err := ecs.FindService(cluster, service)
 	failOnError(err, fmt.Sprintf("Problem finding service: %s %s\n", cluster, service))
+	instances, err := ecs.GetContainerInstances(cluster, service)
+	failOnError(err, "")
 	fmt.Printf("Cluster:\t\t%s\n", cluster)
 	fmt.Printf("Service:\t\t%s\n", service)
 	fmt.Printf("Task Definition:\t%s\n", path.Base(*serviceObj.TaskDefinition))
+	fmt.Printf("Instances:\n\t%s\n", strings.Join(instances, "\n\t"))
 	fmt.Println("Deployments:")
 	for _, d := range serviceObj.Deployments {
 		fmt.Printf("%s %s (%d Desired, %d Pending, %d Running) %v\n", path.Base(*d.TaskDefinition), *d.Status, *d.DesiredCount, *d.PendingCount, *d.RunningCount, *d.CreatedAt)
