@@ -17,6 +17,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/oberd/ecsy/ecs"
 	"github.com/spf13/cobra"
@@ -39,13 +40,16 @@ var updateAgentCmd = &cobra.Command{
 		count := len(instances)
 		fmt.Printf("Found %d instances\n", count)
 		for i := 0; i < count; i++ {
-			fmt.Printf("Upgrading agent %d of %d\n", i, count)
 			err := ecs.UpdateAgent(cluster, instances[i])
 			if err != nil {
-				return err
+				if strings.Contains(err.Error(), "NoUpdateAvailableException") {
+					fmt.Printf("[%d of %d] %s agent up to date.\n", i+1, count, instances[i])
+				}
+				continue
 			}
+			fmt.Printf("[%d of %d] %s marked for upgrade\n", i+1, count, instances[i])
 		}
-		fmt.Printf("Finished upgrading %d instance agents\n", count)
+		fmt.Printf("finished upgrading %d instance agents\n", count)
 		return nil
 	},
 }

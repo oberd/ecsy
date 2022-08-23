@@ -15,7 +15,17 @@ var poll bool
 
 func printServiceStatus(cluster, service string) bool {
 	serviceObj, err := ecs.FindService(cluster, service)
-	failOnError(err, fmt.Sprintf("Problem finding service: %s %s\n", cluster, service))
+	fmt.Printf("Cluster:\t\t%s\n", cluster)
+	fmt.Printf("Service:\t\t%s\n", service)
+	fmt.Printf("Task Definition:\t%s\n", path.Base(*serviceObj.TaskDefinition))
+	if *serviceObj.RunningCount == 0 {
+		fmt.Printf("%s %s (%d Desired, %d Pending, %d Running) %v\n",
+			path.Base(*serviceObj.TaskDefinition), *serviceObj.Status,
+			*serviceObj.DesiredCount, *serviceObj.PendingCount,
+			*serviceObj.RunningCount, *serviceObj.CreatedAt)
+		return false
+	}
+	failOnError(err, fmt.Sprintf("problem finding service: %s %s\n", cluster, service))
 	instances, err := ecs.GetContainerInstances(cluster, service)
 	failOnError(err, "")
 	fmt.Printf("Cluster:\t\t%s\n", cluster)
