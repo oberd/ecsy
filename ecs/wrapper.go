@@ -1056,3 +1056,14 @@ func TaskExitCode(task *ecs.Task) (*int64, error) {
 	}
 	return &exitCode, nil
 }
+
+// CreateRefreshDeployment forces a new deployment on a service.
+func CreateRefreshDeployment(cluster, service string) error {
+	svc := assertECS()
+	_, err := svc.UpdateService(&ecs.UpdateServiceInput{
+		Cluster:            aws.String(cluster),
+		Service:            aws.String(service),
+		ForceNewDeployment: aws.Bool(true),
+	})
+	return err
+}
