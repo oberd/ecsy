@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
@@ -301,6 +302,19 @@ func CreateNewTaskWithEnvironment(existingTask *ecs.TaskDefinition, env []*ecs.K
 	})
 }
 
+// CreateNewTaskWithMemory registers a new task definition, overwriting memory
+// params
+func CreateNewTaskWithMemory(existingTask *ecs.TaskDefinition, memory *int64, memoryReservation *int64) (*ecs.TaskDefinition, error) {
+	return updateEssential(existingTask, func(container *ecs.ContainerDefinition) {
+		if memory != nil {
+			container.SetMemory(*memory)
+		}
+		if memoryReservation != nil {
+			container.SetMemoryReservation(*memoryReservation)
+		}
+	})
+}
+
 // CreateNewTaskWithImage registers a new task, based on the passed task,
 // but with new image.
 func CreateNewTaskWithImage(existingTask *ecs.TaskDefinition, imageURL string) (*ecs.TaskDefinition, error) {
@@ -388,7 +402,7 @@ func saveTaskDef(existingTask *ecs.TaskDefinition) (*ecs.TaskDefinition, error) 
 	return newTaskDef.TaskDefinition, nil
 }
 
-//EssentialImage returns the essential image of a task def
+// EssentialImage returns the essential image of a task def
 func EssentialImage(task *ecs.TaskDefinition) string {
 	essential := findEssential(task)
 	if essential == nil {
@@ -1066,4 +1080,35 @@ func CreateRefreshDeployment(cluster, service string) error {
 		ForceNewDeployment: aws.Bool(true),
 	})
 	return err
+}
+
+func PrintTaskURLs(clusterName string, service *ecs.Service) ([]string, error) {
+	svc := assertECS()
+	tasks, err := svc.ListTasks(&ecs.ListTasksInput{
+		Cluster:     service.ClusterArn,
+		ServiceName: service.ServiceName,
+		MaxResults:  aws.Int64(100),
+	})
+	if err != nil {
+		return nil, err
+	}
+	urls := []string{}
+	for _, taskARNStr := range tasks.TaskArns {
+		taskARN, err := arn.Parse(*taskARNStr)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(taskARN.Resource, "/")
+		taskId := parts[len(parts)-1]
+		urls = append(urls, fmt.Sprintf(
+			"https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s/configuration/%s/configuration/containers/%s?region=%s",
+			taskARN.Region,
+			clusterName,
+			*service.ServiceName,
+			taskId,
+			*service.ServiceName,
+			taskARN.Region,
+		))
+	}
+	return urls, nil
 }

@@ -16,6 +16,18 @@ var describeCmd = &cobra.Command{
 		def, err := ecs.GetCurrentTaskDefinition(args[0], args[1])
 		failOnError(err, "Error finding service")
 		fmt.Printf("%v\n", def)
+		service, err := ecs.FindService(args[0], args[1])
+		failOnError(err, "Error finding service")
+		fmt.Println("")
+		fmt.Println("AWS Console URLs")
+		fmt.Println("================")
+		fmt.Println("")
+		taskURLs, err := ecs.PrintTaskURLs(args[0], service)
+		failOnError(err, "error getting task urls")
+		for _, uri := range taskURLs {
+			fmt.Println(uri)
+			fmt.Println("")
+		}
 	},
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 2 {
