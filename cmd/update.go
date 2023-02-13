@@ -35,7 +35,11 @@ var updateCmd = &cobra.Command{
 		json.Unmarshal(body, &releases)
 		suffix := "linux"
 		if runtime.GOOS == "darwin" {
-			suffix = "darwin-amd64"
+			if runtime.GOARCH == "arm64" {
+				suffix = "darwin-arm64"
+			} else {
+				suffix = "darwin-amd64"
+			}
 		}
 		var version string
 		if len(args) == 0 {
