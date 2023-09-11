@@ -143,6 +143,50 @@ func GetDeployedEssentialContainer(cluster, service string) (*ecs.ContainerDefin
 	return container, nil
 }
 
+func FindServicesWithEnvVar(envVar, envVarValue string) ([]ecs.Service, error) {
+	clusters, err := ListClusters()
+	if err != nil {
+		return nil, err
+	}
+	found := make([]ecs.Service, 0)
+	for _, cluster := range clusters {
+		svc := assertECS()
+		services := make([]ecs.Service, 0)
+		err := svc.ListServicesPages(&ecs.ListServicesInput{
+			Cluster: aws.String(cluster),
+		}, func(page *ecs.ListServicesOutput, lastPage bool) bool {
+			service, err := svc.DescribeServices(&ecs.DescribeServicesInput{
+				Cluster:  aws.String(cluster),
+				Services: page.ServiceArns,
+			})
+			if err != nil {
+				log.Fatalln(err)
+			}
+			services = append(services, *service.Services[0])
+			return !lastPage
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, service := range services {
+			container, err := GetDeployedEssentialContainer(cluster, *service.ServiceName)
+			if err != nil {
+				return nil, err
+			}
+			for _, env := range container.Environment {
+				if envVar != *env.Name {
+					continue
+				}
+				if envVarValue != "" && envVarValue != *env.Value {
+					continue
+				}
+				found = append(found, service)
+			}
+		}
+	}
+	return found, nil
+}
+
 // GetCurrentTaskDefinition returns a service's current task definition
 func GetCurrentTaskDefinition(cluster, service string) (*ecs.TaskDefinition, error) {
 	svc := assertECS()
