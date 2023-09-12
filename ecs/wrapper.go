@@ -151,7 +151,7 @@ func FindServicesWithEnvVar(envVar, envVarValue string) ([]ecs.Service, error) {
 	found := make([]ecs.Service, 0)
 	for _, cluster := range clusters {
 		svc := assertECS()
-		services := make([]ecs.Service, 0)
+		services := make([]*ecs.Service, 0)
 		err := svc.ListServicesPages(&ecs.ListServicesInput{
 			Cluster: aws.String(cluster),
 		}, func(page *ecs.ListServicesOutput, lastPage bool) bool {
@@ -162,7 +162,7 @@ func FindServicesWithEnvVar(envVar, envVarValue string) ([]ecs.Service, error) {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			services = append(services, *service.Services[0])
+			services = append(services, service.Services...)
 			return !lastPage
 		})
 		if err != nil {
@@ -180,7 +180,7 @@ func FindServicesWithEnvVar(envVar, envVarValue string) ([]ecs.Service, error) {
 				if envVarValue != "" && envVarValue != *env.Value {
 					continue
 				}
-				found = append(found, service)
+				found = append(found, *service)
 			}
 		}
 	}
