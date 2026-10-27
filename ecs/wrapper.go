@@ -45,36 +45,60 @@ func getServiceConfiguration() *aws.Config {
 	return &aws.Config{Region: aws.String(region)}
 }
 
+var _session *session.Session
+var _sessionOnce sync.Once
+
+// getSession returns a shared AWS session. Shared config (~/.aws/config) is
+// enabled so SSO profiles work (AWS_PROFILE=x after `aws sso login`).
+// Environment credentials (AWS_ACCESS_KEY_ID, etc.) still take precedence
+// over any profile, so env based auth behaves exactly as before.
+func getSession() *session.Session {
+	_sessionOnce.Do(func() {
+		sess, err := session.NewSessionWithOptions(session.Options{
+			Config:            *getServiceConfiguration(),
+			SharedConfigState: session.SharedConfigEnable,
+		})
+		if err != nil {
+			// Never let a bad ~/.aws/config block env auth: fall back to the
+			// previous credentials-file-only session.
+			fmt.Fprintf(os.Stderr, "warning: could not load AWS shared config, ignoring it: %v\n", err)
+			sess = session.New(getServiceConfiguration())
+		}
+		_session = sess
+	})
+	return _session
+}
+
 func assertECS() *ecs.ECS {
 	if _ecs == nil {
-		_ecs = ecs.New(session.New(getServiceConfiguration()))
+		_ecs = ecs.New(getSession())
 	}
 	return _ecs
 }
 
 func assertEC2() *ec2.EC2 {
 	if _ec2 == nil {
-		_ec2 = ec2.New(session.New(getServiceConfiguration()))
+		_ec2 = ec2.New(getSession())
 	}
 	return _ec2
 }
 
 func assertCloudWatch(region string) *cloudwatchlogs.CloudWatchLogs {
 	if _cloudWatch == nil {
-		_cloudWatch = cloudwatchlogs.New(session.New(getServiceConfiguration()))
+		_cloudWatch = cloudwatchlogs.New(getSession())
 	}
 	return _cloudWatch
 }
 
 func assertCloudWatchEvents() *cloudwatchevents.CloudWatchEvents {
 	if _cloudWatchEvents == nil {
-		_cloudWatchEvents = cloudwatchevents.New(session.New(getServiceConfiguration()))
+		_cloudWatchEvents = cloudwatchevents.New(getSession())
 	}
 	return _cloudWatchEvents
 }
 func assertIAM() *iam.IAM {
 	if _iam == nil {
-		_iam = iam.New(session.New(getServiceConfiguration()))
+		_iam = iam.New(getSession())
 	}
 	return _iam
 }

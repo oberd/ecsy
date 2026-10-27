@@ -60,6 +60,20 @@ You can run `ecsy self-update` to get the latest version
 
 #### Usage
 
+##### AWS Authentication
+
+ecsy uses the standard AWS credential chain. Environment credentials
+(`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) always
+take precedence. Otherwise, profiles from `~/.aws/config` are used, including
+SSO profiles:
+
+```
+aws sso login --profile my-profile
+AWS_PROFILE=my-profile ecsy list-clusters
+```
+
+The region still comes from `AWS_REGION` (default `us-west-2`), not the profile.
+
 ##### Adding SSH Keys
 
 To get started, you will need to register some ssh keys (per cluster).

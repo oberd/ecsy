@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/nnnnathann/ssh"
+	"github.com/docker/machine/libmachine/ssh"
 )
 
 // Client is used to connect over ssh to a remote host.
@@ -50,7 +50,7 @@ func (client *Client) Connect() error {
 	keys := ssh.Auth{
 		Keys: []string{client.PrivateKeyFile},
 	}
-	sshterm, err := ssh.NewNativeClient(client.User, client.Host, "SSH-2.0-MyCustomClient-1.0", client.Port, &keys, nil)
+	sshterm, err := ssh.NewNativeClient(client.User, client.Host, client.Port, &keys)
 	if err != nil {
 		return fmt.Errorf("Failed to request shell - %s", err)
 	}
@@ -66,7 +66,7 @@ func (client *Client) Run(command string, silent bool) (output string, err error
 	keys := ssh.Auth{
 		Keys: []string{client.PrivateKeyFile},
 	}
-	sshterm, err := ssh.NewNativeClient(client.User, client.Host, "SSH-2.0-MyCustomClient-1.0", client.Port, &keys, nil)
+	sshterm, err := ssh.NewNativeClient(client.User, client.Host, client.Port, &keys)
 	if err != nil {
 		return "", fmt.Errorf("Failed to request shell - %s", err)
 	}
@@ -77,8 +77,9 @@ func (client *Client) Run(command string, silent bool) (output string, err error
 	if err != nil {
 		return "", fmt.Errorf("Failed to start command - %s", err)
 	}
-	sshterm.Wait()
+	// Drain output before Wait, which closes the connection.
 	response, err := ioutil.ReadAll(r)
+	sshterm.Wait()
 	if err != nil {
 		return "", fmt.Errorf("Failed to read response - %s", err)
 	}

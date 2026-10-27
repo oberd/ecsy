@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6 // indirect
-	github.com/aws/aws-sdk-go v1.44.183
+	github.com/aws/aws-sdk-go v1.46.7
 	github.com/bketelsen/crypt v0.0.3-0.20200106085610-5cbc8cc4026c // indirect
 	github.com/c4milo/github-release v1.1.0 // indirect
 	github.com/coreos/bbolt v1.3.2 // indirect
@@ -22,7 +22,6 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
-	github.com/nnnnathann/ssh v0.0.0-20170403153053-49937b268da2
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/tsdb v0.7.1 // indirect
